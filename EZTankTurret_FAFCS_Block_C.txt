@@ -1,0 +1,362 @@
+@name EZTankTurret FAFCS Block C
+@inputs  [Pod Cam]:wirelink [Base Gun Chair]:entity [R Shift XZoom Active Ready MuzzleVelocity]          # Inputs
+@outputs [Target Driver]:entity [String]:string [Distance FindClass Lock Parented HESD APDA LatchActive] # Outputs
+@outputs [NormPredicMod CPVPredicMod DPredicMod CPUUsage Ops]                                            # Deburg
+@persist [Driver]:entity                                                                                 # Driver
+                                                                                                         # --- Variables --- #
+@persist [Elevation Depression Yaw RotateSpeed ApplyAngForce FOV LocalVelocity]                          # Gun Setting
+@persist [CamDist Zoom] [CamOffset]:vector                                                               # Cam Setting
+@persist [String]:string [NULLVector]:vector [Inertia]:angle [Active FindClass Range]                    # Starting Setting
+@persist [TurretRotateSound LockOnSound ModSound]:string                                                 # Sounds
+@persist [ToUnitMpS ToUnitDelta]                                                                         # Ballistic Calculation Units
+                                                                                                         # --- Variables END --- #
+@persist [TPosition DPosition]:vector [Distance TravelTime TargetVelocity CenterPropVel]                 # Prediction
+@persist [Target]:entity [Ranger]:ranger                                                                 # TargetPosition
+@persist [GunAmmoType]:string [Type]:array [AmmoType AmmoTypeNum]                                        # Ammo
+@persist [HESDProp APDAProp]:entity [Reloading]                                                          # Mod
+@persist [HESDVector APDAVector ModVector]:vector                                                        # Mod Vector
+interval( 32 )
+
+###########------------------VARIARBLES-----------------############
+
+    # AmmoType
+    GunAmmoType = Gun:acfAmmoType()
+    
+    if( GunAmmoType == "HE" ){ HEAmmo = 1 } else{ HEAmmo = 0 }
+    if( GunAmmoType == "AP" ){ APAmmo = 1 } else{ APAmmo = 0 }
+    
+    # HEAmmo Currection of Error
+	   GravityConstant    = 10.5 * !HEAmmo + 10.9 * HEAmmo
+	   MovingFireConstant = 2.3 * !HEAmmo + 1.5 * HEAmmo
+    
+if( first() | dupefinished() ){
+    
+    # ----- User Interface ----- #
+    
+    # How Many AmmoType ?
+    AmmoType = 2
+    
+    # What Is The Name Of The Type Of Ammunition ?
+    Type = array( "AP", "HE" )
+    
+    # Gun Setting
+    Elevation          = 24                                     # Degrees Gun Can Elevate
+    Depression         = 12                                     # Degrees Gun Can Depress
+    Yaw                = 180                                    # Degrees Turret Can Rotate In Both Yaw Directions
+    RotateSpeed        = 10                                     # Turret Rotation Speed
+    ApplyAngForce      = 250
+    
+    # Cam Setting
+	   CamOffset          = vec( 0, 0, 150 )                       # Camera Position Relative To Input: Base
+	   CamDist            = 400                                    # Camera Distance Away From CamOffset Position
+	   Zoom               = 86                                     # Cam Zooming Unit
+    
+    # Sounds
+    TurretRotateSound  = "acf_extra/tankfx/tankinside2.wav"     # Sound Number 1
+    LockOnSound        = "acf_extra/airfx/laser_lock.wav"       # Sound Number 2
+    ModSound           = "acf_extra/airfx/satellite_target.wav" # Sound Number 4
+    
+    # ----- Do Not Touch These ----- #
+    
+    # Ballistic Calculation Units
+    ToUnitMpS          = 0.01905                                
+    ToUnitDelta        = 52.49343832021
+    
+    # Starting Setting
+    FindClass          = 0
+    AmmoTypeNum        = 1
+    SelectedAmmoType   = Type[ 1, string ]
+    String             = "FindType: NULL"
+    Range              = 999999999
+    Inertia            = shiftL( ang( Gun:inertia() ) )
+    NULLVector         = vec( 0, 0, 0 )
+    
+    # Hologram
+    holoCreate( 1 )
+    holoAlpha( 1, 0 )
+    
+    printColor( vec( 250, 100, 100 ), "EZTankTurret FAFCS Block C V2019.01.03" )
+    
+    # Dupefinished Sound
+    Gun:soundPlay( 3, 3, "hl1/fvox/targetting_system.wav" )
+}
+
+	   # Sutff Variables
+    FOV    = 90 - XZoom * Zoom
+    Driver = Pod[ "Entity", entity ]:driver()
+    
+    # Pod Key
+    Mouse1 = Driver:keyAttack1()
+	   Mouse2 = Driver:keyAttack2()
+    Key_T  = Driver:keyPressed( "T" )
+    Key_M  = Driver:keyPressed( "M" )
+    
+###########---------------------END---------------------############
+
+if( Active ){
+    if( changed( Active ) ){
+        # Cam
+        FOV                       = 90
+        Cam[ "Distance", number ] = CamDist
+        Cam[ "Parent", entity ]   = Base
+        
+        # Turret RotateSound
+        Gun:soundPlay( 1, 0, TurretRotateSound )
+        soundPitch( 1, 0 )
+    }
+    
+    Position                  = Base:pos() + CamOffset
+    Cam[ "FOV", number ]      = FOV
+    Cam[ "Position", vector ] = Position
+    LatchActive               = 0
+    
+    # Find Target
+    if( ( changed( Mouse2 ) & Mouse2 ) & FindClass >= 1 ){
+        Lock++
+        
+        #findExcludePlayerProps( owner() )
+	       findInCone( Gun:pos(), Gun:forward(), Range, 6 )
+        findSortByDistance( Ranger:pos() )
+    }
+    
+    # Target Variables
+    RangerEntity   = Ranger:entity()
+    TargetPosition = Target:pos() + ModVector
+    if( !Lock ){ Target = RangerEntity } else{ Target = findToArray():entity( 1 ) }
+    if( !Target ){
+        CPVPredicMod = 0
+        DPredicMod   = 0
+    }
+    
+    # Lock
+    if( Lock ){ Vector = TargetPosition } else{ Vector = Ranger:pos() }
+    if( ( changed( Lock ) & Lock ) & Lock == 1 ){
+        Gun:soundPlay( 2, 0.8, LockOnSound )
+        
+        soundPitch( 2, 65 )
+        soundVolume( 2, 100 )
+    }
+    
+    # Select TargetClass
+    if( FindClass > 4 ){ FindClass = 0 }
+    if( changed( Key_T ) & Key_T ){ FindClass += 1 }
+    if( changed( FindClass ) & FindClass ){
+        findClearWhiteList()
+        
+        if( FindClass << 1 ){                                                                  String = "FindType: NULL" }
+        if( FindClass == 1 ){ findIncludeClass( "Player" )                                   , String = "FindType: Player"      , hint( "FindType: Player", 3 ) }
+        if( FindClass == 2 ){ findIncludeClass( "Prop_physics" )                             , String = "FindType: Prop"        , hint( "FindType: Prop", 3 ) }
+        if( FindClass == 3 ){ findIncludeClass( "ACF_Gun" ), findIncludeClass( "ACF_Engine" ), String = "FindType: Gun / Engine", hint( "FindType: Gun / Engine", 3 ) }
+        if( FindClass == 4 ){ findIncludeClass( "Gmod_Wire_Gate" )                           , String = "FindType: CenterProp"  , hint( "FindType: CenterProp", 3 ) }
+        
+        if( String == "FindType: NULL" ){ hint( "FindType: NULL", 3 ) }
+    }
+    
+    # ----- FAFCS Option ----- #
+        # Custom Aim
+        if( Shift & Lock ){
+            CustomAim      = Ranger:pos() - Gun:pos()
+            CustomAimClamp = clamp( CustomAim, vec( -200, -200, -100 ), vec( 200, 200, 100 ) )
+        }
+        
+        # Find Chair
+        if( FindClass == 1 & Lock ){
+            if( Target:parent() ){
+                if( Target:parent():type() != "player" ){
+                    Target = Target:parent()
+                } else{ !Lock }
+            }
+        }
+        
+        # Find CenterProp
+        if( FindClass == 4 & Lock ){
+            if( Target:parent():type() != "Gmod_Wire_Gate" ){
+                Target = Target:parent()
+            } else{ !Lock }
+        }
+        
+        # ModProp Spawn & Delete Element
+        GunReady = Gun:acfReady()
+        if( Lock & ( HESD | APDA ) & changed( GunReady == 0 ) & GunReady == 0 ){ timer( "ModProp Delete", TravelTime * 10000 ) }
+        if( changed( clk( "ModProp Delete" ) ) & clk( "ModProp Delete" ) ){
+            PropDelete = 1
+            
+            stoptimer( "ModProp Delete" )
+        } else{ PropDelete = 0 }
+        if( changed( Reloading ) | Ready ){ Reloading = 0 }
+        if( changed( !Ready ) ){ Reloading = 1 }
+        if( changed( Reloading ) & APDA | changed( Reloading ) & HESD ){
+            PropSpawn = 1
+            
+            timer( "Stop", 50)
+        }
+        if( clk( "Stop" ) ){
+            PropSpawn = 0
+            
+            stoptimer( "Stop" )
+        }
+        
+        # Mod Refusal
+        if( changed( R ) & R ){ AmmoTypeNum++ }
+        
+        SelectedAmmoType = Type[ AmmoTypeNum, string ]
+        
+        if( AmmoTypeNum > AmmoType ){ AmmoTypeNum = 1 }
+        if( SelectedAmmoType != GunAmmoType ){ ModRefusal = 1 } else{ ModRefusal = 0 }
+        
+        # HESD
+        if( ( changed( Key_M ) & Key_M ) & HEAmmo ){ HESD = !HESD }
+        if( HESD & HEAmmo == 0 | HESD & !Lock | HESD & Shift | ModRefusal ){ HESD = 0 }
+        if( changed( HESD ) & HESD ){ Gun:soundPlay( 4, 1, ModSound ) }
+        if( changed( Mouse1 & PropSpawn == 1 & !Ready ) & HESD ){
+            if( !HESDProp ){
+                HESDProp = propSpawn( "models/sprops/rectangles/size_90/rect_90x192x3.mdl", NULLVector, 1 )
+                
+                HESDProp:setNoCollideAll()
+                HESDProp:propGravity( 0 )
+                HESDProp:propDrag( 0 )
+                HESDProp:propDraw( 0 )
+                HESDProp:propFreeze( 1 )
+                HESDProp:setMass( 50000 )
+            }
+        } else{ if( !HESD | HESDProp & PropDelete == 1 ){ HESDProp:propDelete() } }
+        if( HESD ){
+            HESDVector = vec( 0, 0, 200 )
+            HESDProp:setPos( TargetPosition )
+            HESDProp:setAng( Gun:toWorld( ang( 0, 90, 90 ) ) )
+        } else{ HESDVector = NULLVector }
+        
+        # APDA
+        if( ( changed( Key_M ) & Key_M ) & APAmmo ){ APDA = !APDA }
+        if( APDA & APAmmo == 0 | APDA & !Lock | APDA & Shift | ModRefusal ){ APDA = 0 }
+        if( changed( APDA ) & APDA ){ Gun:soundPlay( 4, 1, ModSound ) }
+        if( changed( Mouse1 & PropSpawn == 1 & !Ready ) & APDA ){
+            if( !APDAProp ){
+                APDAProp = propSpawn( "models/sprops/rectangles_thin/size_6/rect_96x480x1_5.mdl", NULLVector, 1 )
+                
+                APDAProp:setNoCollideAll()
+                APDAProp:propGravity( 0 )
+                APDAProp:propDrag( 0 )
+                APDAProp:propDraw( 0 )
+                APDAProp:propFreeze( 1 )
+                APDAProp:setMass( 50000 )
+            }
+        } else{ if( !APDA | APDAProp & PropDelete == 1 ){ APDAProp:propDelete() } }
+        if( APDA ){
+            APDAVector = vec( 0, 0, 200 )
+            APDAProp:setPos( TargetPosition )
+            APDAProp:setAng( Gun:toWorld( ang( 16, 0, 0 ) ) )
+        } else{ APDAVector = NULLVector }
+        
+        # Mod Vector
+        APDAPropPosition = ( ( ( Gun:massCenter() - Target:pos() ):normalized() + ( Gun:massCenter() - Target:pos() ):normalized() * ( 250 ) ) * APDA )
+        ModVector        = HESDVector + APDAVector + APDAPropPosition
+        
+        # Parented Element
+        if( Target:parent() ){ Parented = 1 } else{ Parented = 0 }
+        
+            # ----- Prediction ----- #
+            TargetVelocity = toUnit( "m/s", Target:vel():length() )
+            
+            # CenterPropVelocity Prediction
+            if( ( Lock | RangerEntity ) & TargetVelocity == 0 ){
+                if( Target:parent() & DPredicMod == 0 ){
+                    CPVPredicMod  = 1
+                    
+                    Gate          = Target:parent()
+                    CenterProp    = Gate:parent()
+                    CenterPropVec = CenterProp:vel()
+                    CenterPropVel = toUnit( "m/s", CenterProp:vel():length() )
+                    
+                    HECPVCurrection = ( TravelTime * 25.5 ) * HEAmmo
+                } else{
+                    CPVPredicMod  = 0
+                    CenterPropVel = 0
+                    
+                    HECPVCurrection = 0
+                }
+            }
+            
+            # DeltaPosition Prediction
+            if( ( Lock | RangerEntity ) & TargetVelocity == 0 ){
+               if( Target:parent() & CPVPredicMod == 0 & CenterPropVel == 0 ){
+                    DPredicMod    = 1
+                    CenterPropVel = 0
+                    
+                    TPosition     = Target:pos()
+                    DPosition     = $TPosition
+                    DTargetVel    = DPosition * 1.25
+                    DTravelTime   = DTargetVel * TravelTime
+                    DPrediction   = DTravelTime * ToUnitDelta
+                    
+                    HEDCurrection = ( DPrediction * 0.15 ) * HEAmmo
+                } else{
+                    DPredicMod    = 0
+                    
+                    DPrediction   = NULLVector
+                    HEDCurrection = NULLVector
+                }
+            }
+            
+            if( CPVPredicMod == 0 & DPredicMod == 0 & Target ){ NormPredicMod = 1 } else{ NormPredicMod = 0 }
+            
+        # ----- Preiction END ----- #
+        
+    # ----- FAFCS Option END ----- #
+    
+    # Ballistic Calculation
+    Distance   = toUnit( "m/s", Gun:pos():distance( Vector ) )
+    TravelTime = Distance / MuzzleVelocity
+    Gravity    = fromUnit( "m/s", GravityConstant * ( TravelTime ) ^ 2 )
+    Currection = ( ( !Lock * Ranger:entity():vel() ) + ( Lock * Target:vel() ) + ( CenterPropVec + HECPVCurrection ) - Gun:vel() * 0.9 ) * TravelTime
+    Stabilizer = Currection * MovingFireConstant
+    
+    # GunAng Stuff
+    Angle      = Chair:toLocal( Driver:eyeAngles() )
+    Ranger     = rangerOffset( Range, Position, Angle:forward() )
+    GunAng     = ( ( Vector + CustomAimClamp + vec( 0, 0, Gravity ) + Stabilizer + ( DPrediction - HEDCurrection ) ) - Gun:pos() ):toAngle()
+    
+    # AngForce Stuff
+    Force      = Gun:toWorld( clamp( Gun:toLocal( GunAng ), ang( -RotateSpeed ),ang( RotateSpeed ) ) )
+    Clamped    = clamp( entity():toLocal( Force ),ang( -Elevation, -Yaw, -1 ), ang( Depression, Yaw, 1 ) )
+    LocalToGun = Gun:toLocal( entity():toWorld( Clamped ) )
+    Gun:applyAngForce( ( LocalToGun * ApplyAngForce - Gun:angVel() * ApplyAngForce * 0.14 ) * Inertia )
+    
+    # Turret RotateSound
+    LocalVelocity = entity():toLocal( Gun:angles() ):yaw()
+    soundPitch( 1, ( abs( $LocalVelocity ) > 0.3 ) * 80 )
+    
+    # RangerFilter
+    rangerFilter( Gun )
+    rangerFilter( entity():getConstraints() )
+    rangerPersist( 1 )
+} else{
+    stoptimer( "interval" )
+    
+    soundPitch( 1, 0 )
+    
+    LatchActive = 1
+}
+
+# Lock End Element
+if( Lock & changed( Target:owner() ) | Lock & changed( String ) & FindClass | Lock > 1 | Lock & TargetPosition == NULLVector | changed( Active ) & Active ){
+    Lock          = 0
+    CenterPropVel = 0
+    
+    CPVPredicMod  = 0
+    DPredicMod    = 0
+    
+    DPrediction   = NULLVector
+    HEDCurrection = NULLVector
+    
+    HESDProp:propDelete()
+    APDAProp:propDelete()
+    
+    soundVolume( 2, 0 )
+}
+
+# E2 Information
+    CPUUsage = cpuUsage() * 1000000
+    Ops      = ops()
+
+# Made By RuBid EZTankTurret FAFCS Block C V2019.01.03

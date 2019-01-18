@@ -1,0 +1,127 @@
+@name FAFCS EGP Component
+@inputs  [EGP]:wirelink [Chair Gun Target]:entity [String]:string
+@inputs  [Active Lock FindClass Parented APDA HESD]
+@outputs [TargetType]:string [PlayerHealth PropHealth Player_Health Prop_Health Ops]
+@persist [Driver]:entity [XY]:vector [V2]:vector2
+@persist [Green Red NULL]:vector4
+@persist [A]
+interval( 128 )
+
+# EGP Num: 30 ~ 42
+
+if( first() | dupefinished() ){
+###########------------------VARIARBLES-----------------############
+
+    # Color
+    Green = vec4( 0, 250, 0, 255 )
+    Red   = vec4( 250, 0, 0, 255 )
+    NULL  = vec4( 0, 0, 0, 0 )
+    
+###########---------------------END---------------------############
+    
+    # Functions
+    function screenSize(){
+        Dv = Chair:driver()
+        X  = egpScrSize( Dv ):x()
+        Y  = egpScrSize( Dv ):y()
+        V2 = vec2( X, Y ) / 512
+    }
+    
+    printColor( vec( 250, 250, 100 ), "FAFCS EGP Component V2018.12.28" )
+}
+
+if( Active ){
+    screenSize()
+    
+    if( FindClass == 1 ){ String2 = "Name: " } else{ String2 = "Owner: " }
+    
+    if( Target ){
+        Player_Health = Target:health()
+        TargetType    = Target:type()
+        
+        EGP:egp3DTracker( 30, vec( 0, 0, 0 ) )
+        EGP:egpBox( 31, vec2( 0, 0 ) * V2, vec2( 0, 0 ) * V2 )
+        EGP:egpBoxOutline( 32, vec2( 0, 0 ) * V2, vec2( 10, 18 ) * V2 )
+        
+        EGP:egpText( 33, ( String2 ) + "", vec2( 6, -10 ) * V2 )
+        EGP:egpText( 34, ( Target:name() ) + "", vec2( 20, -10 ) * V2 )
+        EGP:egpText( 35, ( Target:owner():name() ) + "", vec2( 22, -10 ) * V2 )
+        EGP:egpText( 40, "Parented Entity", vec2( 6, -4 + A ) * V2 )
+        EGP:egpText( 41, "Health: ", vec2( 6, -4 ) * V2 )
+        EGP:egpText( 42, "" + floor( Player_Health ), vec2( 21, -4 ) * V2 )
+        
+        if( TargetType == "player" & Lock ){ PlayerHealth = 1 } else{ PlayerHealth = 0 }
+        
+        if( Player_Health <= 20 ){ EGP:egpColor( 42, vec4( 250, 0, 0, 255 * PlayerHealth ) ) }
+        elseif( Player_Health <= 40 ){ EGP:egpColor( 42, vec4( 250, 100, 0, 255 * PlayerHealth ) ) }
+        elseif( Player_Health <= 60 ){ EGP:egpColor( 42, vec4( 250, 200, 0, 255 * PlayerHealth ) ) }
+        elseif( Player_Health <= 80 ){ EGP:egpColor( 42, vec4( 0, 250, 0, 255 * PlayerHealth ) ) }
+        elseif( Player_Health <= 100 ){ EGP:egpColor( 42, vec4( 0, 250, 250, 255 * PlayerHealth ) ) }
+        
+    }
+    
+    if( PlayerHealth == 1 ){ EGP:egpAlpha( 41, 255 ), A = 7 } else{ EGP:egpAlpha( 41, 0 ), A = 0 }
+    
+    EGP:egpText( 36, "" + ( String ) , vec2( 256, 296 ) * V2 )
+    
+    EGP:egpColor( 31, ( NULL ) )
+    EGP:egpColor( 32, ( Green ) )
+    EGP:egpColor( 33, ( Green ) )
+    EGP:egpColor( 36, ( Green ) )
+    EGP:egpColor( 37, ( Green ) )
+    EGP:egpColor( 38, ( Green ) )
+    EGP:egpColor( 39, ( Green ) )
+    EGP:egpColor( 41, ( Green ) )
+} else{ stoptimer( "interval" ) }
+
+if( changed( Active ) ){
+    EGP:egpText( 37, "Locked", vec2( 256, 306 ) * V2 )
+    EGP:egpText( 38, "APDA", vec2( 296, 316 ) * V2 )
+    EGP:egpText( 39, "HESD", vec2( 296, 316 ) * V2 )
+    
+    EGP:egpAlign( 36, 1 )
+    EGP:egpAlign( 37, 1 )
+}
+
+if( Lock ){
+    EGP:egpColor( 34, teamColor( Target:team() ) )
+    EGP:egpColor( 35, teamColor( Target:owner():team() ) )
+
+    EGP:egpAlpha( 32, 255 )
+    EGP:egpAlpha( 33, 255 )
+    EGP:egpAlpha( 37, 255 )
+    EGP:egpAlpha( 34, 255 )
+    EGP:egpAlpha( 35, 255 )
+    EGP:egpAlpha( 37, 255 )
+    
+    if( TargetType == "player" ){ EGP:egpAlpha( 41, 255 ) } else{ EGP:egpAlpha( 41, 0 ) }
+} else{
+    EGP:egpAlpha( 32, 0 )
+    EGP:egpAlpha( 33, 0 )
+    EGP:egpAlpha( 37, 0 )
+    EGP:egpAlpha( 34, 0 )
+    EGP:egpAlpha( 35, 0 )
+    EGP:egpAlpha( 37, 0 )
+    EGP:egpAlpha( 41, 0 )
+}
+
+if( changed( Target ) ){
+    EGP:egpParent( 30, Target )
+    EGP:egpParent( 31, 30 )
+    EGP:egpParent( 32, 30 )
+    EGP:egpParent( 33, 30 )
+    EGP:egpParent( 34, 31 )
+    EGP:egpParent( 35, 30 )
+    EGP:egpParent( 40, 31 )
+    EGP:egpParent( 41, 31 )
+    EGP:egpParent( 42, 31 )
+}
+
+#EGP Mod
+if( APDA ){ EGP:egpAlpha( 38, 255 ) } else{ EGP:egpAlpha( 38, 0 ) }
+if( HESD ){ EGP:egpAlpha( 39, 255 ) } else{ EGP:egpAlpha( 39, 0 ) }
+if( Parented & Lock ){ EGP:egpColor( 40, ( Red ) ) } else{ EGP:egpColor( 40, ( NULL ) ) }
+
+Ops = ops()
+
+#Made By RuBid FAFCS EGP Component V2018.12.28

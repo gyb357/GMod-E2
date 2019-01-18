@@ -1,0 +1,116 @@
+@name WAC HUD EGP Component
+@inputs  [EGP]:wirelink [Base Chair Engine]:entity
+@inputs  [Active HVR]
+@outputs [Speed ALT Ops BaseAngle] #Deburg
+@persist [Driver]:entity [XY]:vector [V2]:vector2
+@persist [Green Red]:vector
+@persist [Range Speed]
+
+if( first() | dupefinished() ){
+    
+    Range = 999999999
+    
+    printColor( vec( 150, 250, 150 ), "WAC EGP Component V2018.12.12" )
+}
+
+if( Active ){
+    interval( 128 )
+    
+    # ScreenSize
+    Driver = Chair:driver()
+    X      = egpScrSize( Driver ):x()
+    Y      = egpScrSize( Driver ):y()
+    V2     = vec2( X, Y ) / 512
+    
+    # Variables
+    rangerFilter( Base )
+    Ranger = rangerOffset( Range, Base:pos(), vec( 0, 0, -1 ) ):distance()
+    Speed  = toUnit( "km/h", Base:vel():length() )
+    ALT    = toUnit( "m", Ranger )
+    #BaseAngle = Base:angles():roll()
+    
+    EGP:egpText( 18, "" + floor( Speed ), vec2( 208, 340.5 ) * V2 )
+    EGP:egpText( 19, "" + floor( ALT ), vec2( 298.5, 340.5 ) * V2 )
+    
+    EGP:egpLine( 5, vec2( 216, 256 ) * V2, vec2( 250, 256 ) * V2 )
+    EGP:egpLine( 6, vec2( 296, 256 ) * V2, vec2( 262, 256 ) * V2 )
+    
+    EGP:egpTriangle( 20, vec2( 50 ,150 ) * V2, vec2( 80, 150 ) * V2, vec2( 150, 200 ) * V2 )
+    #EGP:egpP
+    
+    if( HVR ){ EGP:egpAlpha( 17, 255 ) } else{ EGP:egpAlpha( 17, 0 ) }
+    
+}
+
+if( changed( Active ) ){
+    # Color Variable
+    Green = vec( 50, 250, 50 )
+    Red   = vec( 250, 50, 50 )
+    
+    EGP:egpLine( 1, vec2( 253, 256 ) * V2, vec2( 255, 256 ) * V2 )
+    EGP:egpLine( 2, vec2( 259, 256 ) * V2, vec2( 257, 256 ) * V2 )
+    EGP:egpLine( 3, vec2( 256, 251 ) * V2, vec2( 256, 254 ) * V2 )
+    EGP:egpLine( 4, vec2( 256, 261 ) * V2, vec2( 256, 258 ) * V2 )
+    
+    EGP:egpLine( 7, vec2( 210, 176 ) * V2, vec2( 210, 336 ) * V2 )
+    EGP:egpLine( 8, vec2( 212, 176 ) * V2, vec2( 212, 336 ) * V2 )
+    
+    EGP:egpLine( 9, vec2( 300, 176 ) * V2, vec2( 300, 336 ) * V2 )
+    EGP:egpLine( 10, vec2( 302, 176 ) * V2, vec2( 302, 336 ) * V2 )
+    
+    EGP:egpLine( 11, vec2( 209, 176 ) * V2, vec2( 213.5, 176 ) * V2 )
+    EGP:egpLine( 12, vec2( 209, 336 ) * V2, vec2( 213.5, 336 ) * V2 )
+    EGP:egpLine( 13, vec2( 299, 176 ) * V2, vec2( 303.5, 176 ) * V2 )
+    EGP:egpLine( 14, vec2( 299, 336 ) * V2, vec2( 303.5, 336 ) * V2 )
+    
+    EGP:egpText( 15, "SPD", vec2( 208, 336 ) * V2 )
+    EGP:egpText( 16, "ALT", vec2( 298.5, 336 ) * V2 )
+    EGP:egpText( 17, "HVR", vec2( 298.5, 170 ) * V2 )
+    
+    EGP:egpColor( 1, ( Green ) )
+    EGP:egpColor( 2, ( Green ) )
+    EGP:egpColor( 3, ( Green ) )
+    EGP:egpColor( 4, ( Green ) )
+    EGP:egpColor( 5, ( Green ) )
+    EGP:egpColor( 6, ( Green ) )
+    
+    EGP:egpColor( 7, ( Green ) )
+    EGP:egpColor( 8, ( Green ) )
+    EGP:egpColor( 9, ( Green ) )
+    EGP:egpColor( 10, ( Green ) )
+    
+    EGP:egpColor( 11, ( Green ) )
+    EGP:egpColor( 12, ( Green ) )
+    EGP:egpColor( 13, ( Green ) )
+    EGP:egpColor( 14, ( Green ) )
+    
+    EGP:egpColor( 15, ( Green ) )
+    EGP:egpColor( 16, ( Green ) )
+    EGP:egpColor( 17, ( Green ) )
+    
+    EGP:egpColor( 18, ( Green ) )
+    EGP:egpColor( 19, ( Green ) )
+    
+    EGP:egpSize( 1, 2 )
+    EGP:egpSize( 2, 2 )
+    EGP:egpSize( 3, 2 )
+    EGP:egpSize( 4, 2 )
+    
+    EGP:egpSize( 7, 2 )
+    EGP:egpSize( 8, 2 )
+    EGP:egpSize( 9, 2 )
+    EGP:egpSize( 10, 2 )
+    
+    EGP:egpSize( 11, 2 )
+    EGP:egpSize( 12, 2 )
+    EGP:egpSize( 13, 2 )
+    EGP:egpSize( 14, 2 )
+    
+    EGP:egpSize( 15, 13 )
+    EGP:egpSize( 16, 13 )
+    EGP:egpSize( 17, 13 )
+    EGP:egpSize( 18, 15 )
+    EGP:egpSize( 19, 15 )
+}
+
+Ops = ops()

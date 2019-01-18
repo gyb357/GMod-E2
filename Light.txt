@@ -1,0 +1,33 @@
+@name Light
+@inputs  [Active Latch_Active Right_Latch_Active Left_Latch_Active Speed]
+@outputs [Red_Light Blue_Light Right_Orange_Light Left_Orange_Light White_Light Green]
+@persist [Own]:entity
+
+interval( 128 )
+
+if( first() | dupefinished() ) { Own = owner() }
+
+Key = Own:keyPressed("S")
+
+if( Active ){
+    Blue_Light = 255
+    
+    if( Key & Speed >= 5 | Latch_Active == 1) {
+        Red_Light = 255
+        
+        if( Speed >= 1 & Latch_Active == 0 ){
+            White_Light = 180
+            Red_Light   = 0
+            } else{White_Light = 0 }
+        } else{ Red_Light = 0}
+    
+    if( Right_Latch_Active == 1 & Left_Latch_Active == 0 ){ # Turn Right
+        Right_Orange_Light = 255
+        Green              = 180
+    }
+    
+    if( Left_Latch_Active == 1 & Right_Latch_Active == 0 ){ # Turn Left
+    Left_Orange_Light = 255
+    Green             = 180
+    } else{ Right_Orange_Light = 0 Left_Orange_Light = 0 Green = 0 }
+} else{ Blue_Light = 0 Red_Light = 0 White_Light = 0 Right_Orange_Light = 0 Left_Orange_Light = 0 Green = 0 }

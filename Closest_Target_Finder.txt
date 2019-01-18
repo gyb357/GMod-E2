@@ -1,0 +1,17 @@
+@name Closest Target Finder
+@inputs [Entities Position Velocity]:array
+@outputs Target:entity [TargetPositon TargetVelocity]:vector
+@persist Distance:array
+
+interval(50)
+
+for(I=1,Entities:count()){
+    
+    Distance[I,number] = Position[I,vector]:distance(entity():pos())
+}
+
+Index = Distance:minIndex()
+
+Target = Entities:entity(Index)
+TargetVelocity = Velocity:vector(Index)
+TargetPositon = Position:vector(Index)

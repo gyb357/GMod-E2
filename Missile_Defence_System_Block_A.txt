@@ -1,0 +1,162 @@
+@name Missile Defence System Block A
+@inputs  [Pod]:wirelink [Chair Gun CHASSIS Base Turret Target]:entity [Entities Position Velocity Adv_Entity_Marker]:array
+@inputs  [Active FireKey MuzzleVelocity]
+@outputs [Fire Rader Ops]
+@persist [Driver]:entity                                                                #Driver
+@persist [FallConstant MovingFireConstant MovingTargetConstant] [TargetDistance]:array  #Calculation Of Trajectory Variables
+@persist [Rader Range] [CamOffset]:vector                                               #Starting Setting
+@persist [FireSound WarningSound]:string                                                #Sounds
+@persist [CIWS_Mod]                                                                     #CIWS Mod
+
+interval( 32 )
+
+if( first() | dupefinished() ){
+###########------------------VARIARBLES-----------------############
+    
+    #Calculation Of Trajectory Variables
+    FallConstant         = 10.5
+    MovingFireConstant   = 2.3
+    MovingTargetConstant = -1
+    
+    #Starting Setting
+    Rader                = 0
+    CIWS_Mod             = 1
+    Range                = 999999999
+    CamOffset            = vec( 0, 0, 150 )
+    
+    #Sounds
+    FireSound            = "acf_engines/pulsejetmedium.wav"
+    WarningSound         = "acf_extra/airfx/laser_track.wav"
+    
+    Turret:setMass( 0 )
+    Base:setMass( 0 )
+    
+###########---------------------END---------------------############
+
+    #Calculation Of Trajectory Function
+    function calculation(){
+        Distance        = holoEntity( 2 ):pos():distance( Gun:pos() ) * 0.01905
+        TravelTime      = Distance / MuzzleVelocity
+        Gravity         = FallConstant * ( TravelTime ) ^ 2 / 0.01905
+        RV              = ( holoEntity( 2 ):vel() * MovingTargetConstant - Gun:vel() * 0.9 ) * TravelTime
+        MissileDistance = toUnit( "m", holoEntity( 2 ):pos():distance( Gun:pos() ) )
+    }
+    
+    #Closet Target Finder
+    function closetTargetFinder(){
+        for( I = 1, Entities:count() ){
+        
+            TargetDistance[ I, number ] = Position[ I, vector ]:distance( entity():pos() )
+            
+            Index = TargetDistance:minIndex()
+        
+            Target = Entities:entity( Index)
+            TargetVelocity = Velocity:vector( Index )
+            TargetPositon = Position:vector( Index )
+        }
+    }
+    
+    #FindMissile
+    function findMissile(){
+        findInSphere( Base:pos(), MissileDistance )
+        findIncludeClass( "ACF_Missile" )
+        findExcludePlayerProps( owner() )
+        findSortByDistance( Base:pos() )
+        
+        TargetSpeed = toUnit( "m/s", Target:vel():length() )
+        
+        if( Target & TargetSpeed >> 0 ){
+            TargetVel = TargetSpeed
+            Acivity   = 1
+        } else{ TargetVel = 0 Activity = 0 }
+    }
+    
+    function parentingGuns(){
+        for( I = 1, Adv_Entity_Marker:count() ){
+            Guns = Adv_Entity_Marker[ I, entity ]
+            
+            Guns:acfActive()
+            Guns:parentTo( Turret )
+        }
+    }
+        
+    #Hologram
+    holoCreate( 1 )                                        #Gun Model Holo
+    holoModel( 1, "models/rotarycannon/kw/14_5mmrac.mdl" )
+    holoClipEnabled( 1, 1 )
+    holoClip( 1, vec( 11, 0, 0 ), vec( 1, 0, 0 ), 0 )
+    holoPos( 1, Turret:pos() )
+    holoAng( 1, Turret:angles() )
+    holoParent( 1, Gun )
+    
+    #Sound
+    soundPlay( 1, 0, FireSound )
+    soundPlay( 2, 0, WarningSound )
+    soundPitch( 1, 140 )
+    soundPitch( 2, 65 )
+    
+    soundStop( 1 )
+    soundStop( 2 )
+    
+    printColor( vec( 100, 250, 250 ), "Missile Defence System Block A V2018.11.19" )
+}
+
+    #Sutff Variables
+    Driver               = Pod[ "Entity", entity ]:driver()
+    Key_N                = Driver:keyPressed( "N" )
+
+if( Active ){
+    #Functions
+    closetTargetFinder()
+    findMissile()
+    
+    #Select CIWS Mod
+    if( changed( Key_N ) & Key_N ){
+        CIWS_Mod++
+        
+        if( CIWS_Mod > 3 ){ CIWS_Mod = 1 }
+        
+        #CIWS Mod
+        if( CIWS_Mod == 1 ){ hint( "CIWS: Offline", 3 )      Rader = 0 }
+        if( CIWS_Mod == 2 ){ hint( "CIWS: Defence Mod", 3 )  Rader = 1 }
+        if( CIWS_Mod == 3 ){ hint( "CIWS: SemiAuto Mod", 3 ) Rader = 0 }
+        else{ Rader = 0 CIWS = 0 }
+    }
+    
+    #CIWS Offline Mod
+    if( CIWS_Mod == 1 ){
+        Base:setAng( CHASSIS:angles() )
+        Turret:setAng( CHASSIS:angles() )
+    }
+    
+    #CIWS Defence Mod
+    if( CIWS_Mod == 2 & Target ){
+        calculation()
+        
+        Base:setAng( ( TargetPositon + ( TargetVelocity * 10.5 ) - Base:massCenter() ):setZ( 0 ):toAngle() )
+        Turret:setAng( ( TargetPositon + vec( 0, 0, Gravity ) + RV * MovingFireConstant + ( TargetVelocity * 10.5 ) - Turret:massCenter() ):toAngle() )
+        
+        #Missile Interception Element
+        if( MissileDistance < 100 ){
+            Fire = 1
+            soundVolume( 1, 1 )
+            soundVolume( 2, 1 )
+        } else{
+            Fire = 0
+            soundVolume( 1, 0 )
+            soundVolume( 2, 0 )
+        }
+    } else{ Base:setAng( CHASSIS:angles() ) Turret:setAng( CHASSIS:angles() ) }
+    
+    #CIWS SemiAuto Mod
+    if( CIWS_Mod == 3 ){
+        
+    }
+}
+
+#SetPos Stuff
+Turret:setPos( Base:pos() + vec( 0, 0, 10 ) + ( Base:vel() * 0.01505 ) )
+
+Ops = ops()
+
+#Made By RuBid Missile Defence System Block A V2018.11.19

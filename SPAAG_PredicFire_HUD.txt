@@ -1,0 +1,179 @@
+@name SPAAG PredicFire HUD
+@inputs [Pod EGP]:wirelink [Base Gun Chair]:entity [Active MuzzleVelocity]
+@outputs 
+@outputs [Target]:entity [TravelTime Parented Lock CPUUsage Ops] # Debug
+@persist [Driver]:entity                                         # Driver
+@persist [CamOffset]:vector [LockOnSound]:string
+@persist [XY]:vector [V2]:vector2                                # EGP Screen
+@persist [String]:string [ToUnitMpS Range]
+@persist [Ranger]:ranger
+interval( 32 )
+
+###########------------------VARIARBLES-----------------############
+
+    # AmmoType
+    GunAmmoType = Gun:acfAmmoType()
+    
+    if( GunAmmoType == "HE" ){ HEAmmo = 1 } else{ HEAmmo = 0 }
+    if( GunAmmoType == "AP" ){ APAmmo = 1 } else{ APAmmo = 0 }
+    
+    # HEAmmo Currection of Error
+	   GravityConstant    = 10.5 * !HEAmmo + 10.9 * HEAmmo
+	   MovingFireConstant = 2.3 * !HEAmmo + 1.5 * HEAmmo
+    
+if( first() | dupefinished() ){
+    
+    # ----- User Interface ----- #
+    
+	   CamOffset          = vec( 0, 0, 150 )                       # Camera Position Relative To Input: Base
+    LockOnSound        = "acf_extra/airfx/laser_lock.wav"       # Sound Number 1
+    
+    # ----- Do Not Touch These ----- #
+    
+    # Ballistic Calculation Units
+    ToUnitMpS          = 0.01905
+    
+    # Starting Setting
+    Range              = 999999999
+    String             = "FindType: NULL"
+    
+    function screenSize(){
+        X  = egpScrSize( Driver ):x()
+        Y  = egpScrSize( Driver ):y()
+        V2 = vec2( X, Y ) / 512
+    }
+    
+    # Hologram
+    holoCreate( 1 )
+    holoAlpha( 1, 0 )
+    
+    printColor( vec( 50, 200, 250 ), "SPAAG PredicFire HUD V2019.01.04" )
+    printColor( vec( 50, 200, 250 ), "Present To Schrodinger" )
+}
+
+	   # Driver
+    Driver = Pod[ "Entity", entity ]:driver()
+    
+    # Pod Key
+    Key_T               = Driver:keyPressed( "O" )
+    ChangeTargetTypeKey = Driver:keyPressed( "L" )
+    
+if( Active ){
+    # Functions
+    screenSize()
+    
+    Position   = Base:pos() + CamOffset
+    Angle      = Chair:toLocal( Driver:eyeAngles() )
+    Ranger     = rangerOffset( Range, Position, Angle:forward() )
+    
+    # Find Target
+    if( ( changed( Key_T ) & Key_T ) ){
+        Lock++
+        
+        findExcludePlayerProps( owner() )
+        findByClass( "player" )
+        findByClass( "Prop_physics" )
+	       findInCone( Gun:pos(), Gun:forward(), Range, 6 )
+        findSortByDistance( Ranger:pos() )
+    }
+    if( Lock > 1 ){ Lock = 0 }
+    
+    # Target Variables
+    TargetPosition = Target:pos()
+    Target = findToArray():entity( 1 )
+    
+    # LockOn Sound
+    if( ( changed( Lock ) & Lock ) & Lock == 1 & Target ){
+        Gun:soundPlay( 1, 0.8, LockOnSound )
+        
+        soundPitch( 1, 65 )
+        soundVolume( 1, 100 )
+    }
+    
+    if( !Target ){ soundStop( 1 ) }
+    
+    TargetVelocity = toUnit( "m/s", Target:vel():length() )
+            
+    # CenterPropVelocity Prediction
+    if( Lock & TargetVelocity == 0 ){
+        if( Target:parent() ){
+        CPVPredicMod  = 1
+        
+        Gate          = Target:parent()
+        CenterProp    = Gate:parent()
+        CenterPropVec = CenterProp:vel()
+        CenterPropVel = toUnit( "m/s", CenterProp:vel():length() )
+        
+        HECPVCurrection = ( TravelTime * 25.5 ) * HEAmmo
+    } else{
+        CPVPredicMod  = 0
+        CenterPropVel = 0
+        
+        HECPVCurrection = 0
+    }
+}
+    
+    # Ballistic Calculation
+    Distance   = toUnit( "m/s", Gun:pos():distance( TargetPosition ) )
+    TravelTime = Distance / MuzzleVelocity
+    Gravity    = fromUnit( "m/s", GravityConstant * ( TravelTime ) ^ 2 )
+    Currection = ( Target:vel() * !Parented + CenterPropVec * Parented - Gun:vel() * 0.9 ) * TravelTime
+    Stabilizer = Currection * MovingFireConstant
+    
+    # EGP
+    EGP:egpText( 6, "FindClass: " + ( String ), vec2( 256, 300 ) * V2 )
+    EGP:egpAlign( 6, 1 )
+    
+    EGP:egpColor( 6, vec( 0, 250, 0 ) )
+    
+    if( Target ){
+        EGP:egp3DTracker( 1, vec( 0, 0, 0 ) )
+        EGP:egpBox( 2, vec2( 0, 0 ) * V2, vec2( 0, 0 ) * V2 )
+        EGP:egpBoxOutline( 3, vec2( 0, 0 ) * V2, vec2( 10, 18 ) * V2 )
+        
+        EGP:egp3DTracker( 4, vec( 0, 0, 0 ) )
+        EGP:egpCircleOutline( 5, vec2( 0, 0 ) * V2, vec2( 4, 7.25 ) * V2 )
+        
+        EGP:egpPos( 4, TargetPosition + vec( 0, 0, Gravity ) + Stabilizer )
+    }
+    
+    # Hologram
+    if( Lock & Target ){
+        if( Target:parent() ){
+            Parented = 1
+            holoPos( 1, holoEntity( 1 ):pos() )
+        }
+    } else{
+        Parented = 0
+    }
+} else{
+    stoptimer( "interval" )
+    
+    soundStop( 1 )
+}
+
+if( changed( Target ) ){
+    EGP:egpParent( 1, Target )
+    EGP:egpParent( 2, 1 )
+    EGP:egpParent( 3, 1 )
+    EGP:egpParent( 7, 1 )
+    
+    EGP:egpParent( 5, 4 )
+}
+
+if( Lock ){
+    EGP:egpColor( 3, vec4( 0, 250, 0, 255 ) )
+    EGP:egpColor( 5, vec4( 0, 250, 0, 255 ) )
+    
+    if( Parented ){ EGP:egpColor( 7, vec4( 250, 0, 0, 255 ) ) }
+} else{
+    EGP:egpColor( 3, vec4( 0, 250, 0, 0 ) )
+    EGP:egpColor( 5, vec4( 0, 250, 0, 0 ) )
+    EGP:egpColor( 7, vec4( 250, 0, 0, 0 ) )
+}
+
+# E2 Information
+    CPUUsage = cpuUsage() * 1000000
+    Ops      = ops()
+
+# Mady By RuBid SPAAG PredicFire HUD V2019.01.04

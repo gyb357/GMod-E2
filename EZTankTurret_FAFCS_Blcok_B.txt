@@ -1,0 +1,255 @@
+@name EZTankTurret FAFCS Blcok B
+@inputs  [Pod Cam]:wirelink [Base Gun Chair]:entity
+@inputs  [Active MuzzleVelocity XZoom Shift Ready APAmmo HEAmmo]
+@outputs [Target Driver]:entity [String]:string [GunAng]:angle
+@outputs [Lock FindClass Parented HESD APDA LatchActive]
+@outputs [Distance TravelTime TargetVelocity Ops] [HESDVector APDAVector]:vector #Deburg
+@persist [Driver]:entity                                                         #Driver
+@persist [MovingTargetConstant ToUnitMpS ToUnit]                                 #Calculation Of Trajectory
+@persist [NULLVector DPosition DVelocity S]:vector                               #Vector
+@persist [Elevation Depression Yaw RotateSpeed ApplyAngForce FOV LocalVelocity]  #Gun
+@persist [CamDist Zoom] [CamOffset]:vector                                       #Cam
+@persist [Active FindClass Range] [String]:string [Inertia]:angle                #Starting Setting
+@persist [TurretRotateSound LockOnSound ModSound]:string                         #Sounds
+@persist [Target]:entity [Ranger]:ranger                                         #TargetPosition
+@persist [HESDProp APDAProp]:entity                                              #Mod
+interval( 32 )
+
+# HEAmmo Currection of Error
+if( HEAmmo ){ HEConstant = 1 } else{ HEConstant = 0 }
+if( HEAmmo & Parented == 1 ){ HECurrection = TravelTime * 25.5 } else{ HECurrection = 0 }
+
+###########------------------VARIARBLES-----------------############
+
+	   GravityConstant      = 10.5 * !HEConstant + 10.9 * HEConstant
+	   MovingFireConstant   = 2.3 * !HEConstant + 1.5 * HEConstant
+    
+if( first() | dupefinished() ){
+    # Calculation Of Trajectory
+    MovingTargetConstant = -1
+    ToUnitMpS            = 0.01905
+    ToUnit               = 52.49343832021
+    
+    # Gun Setting
+    Elevation            = 80
+    Depression           = 10
+    Yaw                  = 180
+    RotateSpeed          = 10
+    ApplyAngForce        = 250
+    
+    # Cam Setting
+	   CamOffset            = vec( 0, 0, 150 )
+	   CamDist              = 400
+	   Zoom                 = 86
+    
+    # Starting Setting
+    FindClass            = 0
+    String               = "FindType: NULL"
+    Range                = 999999999
+    NULLVector           = vec( 0, 0, 0 )
+    Inertia              = shiftL( ang( Gun:inertia() ) )
+    
+    # Sounds
+    TurretRotateSound    = "acf_extra/tankfx/tankinside2.wav"     "Sound Num1"
+    LockOnSound          = "acf_extra/airfx/laser_lock.wav"       "Sound Num2"
+    ModSound             = "acf_extra/airfx/satellite_target.wav" "Sound Num4"
+    
+    # Hologram
+    holoCreate( 1 )
+    holoAlpha( 1, 0 )
+    
+    printColor( vec( 250, 100, 100 ), "EZTankTurret FAFCS Block B V2018.12.27" )
+    
+    # Dupefinished Sound
+    Gun:soundPlay( 3, 3, "hl1/fvox/targetting_system.wav" )
+}
+
+	   # Sutff Variables
+    FOV                  = 90 - XZoom * Zoom
+    Driver               = Pod[ "Entity", entity ]:driver()
+    
+    # Pod Key
+    Mouse1               = Driver:keyAttack1()
+	   Mouse2               = Driver:keyAttack2()
+    Key_T                = Driver:keyPressed( "T" )
+    Key_M                = Driver:keyPressed( "M" )
+    
+###########---------------------END---------------------############
+
+if( Active ){
+    if( changed( Active ) ){
+        # Cam
+        FOV                       = 90
+        Cam[ "Distance", number ] = CamDist
+        Cam[ "Parent", entity ]   = Base
+        
+        # Turret RotateSound
+        Gun:soundPlay( 1, 0, TurretRotateSound )
+        soundPitch( 1, 0 )
+    }
+    
+    Position                      = Base:pos() + CamOffset
+    Cam[ "FOV", number ]          = FOV
+    Cam[ "Position", vector ]     = Position
+    LatchActive                   = 0
+    
+    # Find Target
+    if( ( changed( Mouse2 ) & Mouse2 ) & FindClass >= 1 ){
+        Lock++
+        
+        #findExcludePlayerProps( owner() )
+	       findInCone( Gun:pos(), Gun:forward(), Range, 6 )
+        findSortByDistance( Ranger:pos() )
+    }
+    
+    # Target Variables
+    Target                = findToArray():entity( 1 )
+    RangerEntity          = Ranger:entity()
+    TargetPosition        = Target:pos() + HESDVector + APDAVector + S
+    
+    # Lock
+    if( Lock ){ Vector = TargetPosition } else{ Vector = Ranger:pos() }
+    if( ( changed( Lock ) & Lock ) & Lock == 1 ){
+        Gun:soundPlay( 2, 0.8, LockOnSound )
+        
+        soundPitch( 2, 65 )
+        soundVolume( 2, 100 )
+    }
+    
+    # Select TargetClass
+    if( FindClass > 4 ){ FindClass = 0 }
+    if( changed( Key_T ) & Key_T ){ FindClass += 1 }
+    if( changed( FindClass ) & FindClass ){
+        findClearWhiteList()
+        
+        if( FindClass << 1 ){                                                                 String = "FindType: NULL" }
+        if( FindClass == 1 ){ findIncludeClass( "Player" )                                    String = "FindType: Player"       hint( "FindType: Player", 3 ) }
+        if( FindClass == 2 ){ findIncludeClass( "Prop_physics" )                              String = "FindType: Prop"         hint( "FindType: Prop", 3 ) }
+        if( FindClass == 3 ){ findIncludeClass( "ACF_Gun" ), findIncludeClass( "ACF_Engine" ) String = "FindType: Gun / Engine" hint( "FindType: Gun / Engine", 3 ) }
+        if( FindClass == 4 ){ findIncludeClass( "Gmod_Wire_Gate" )                            String = "FindType: CenterProp"   hint( "FindType: CenterProp", 3 ) }
+        
+        if( String == "FindType: NULL" ){ hint( "FindType: NULL", 3 ) }
+    }
+    
+    #---FAFCS Option---#
+    # Custom Aim
+    if( Shift & Lock ){
+        CustomAim      = Ranger:pos() - Gun:pos()
+        CustomAimClamp = clamp( CustomAim, vec( -200, -200, -100 ), vec( 200, 200, 100 ) )
+    }
+    
+    # Find CenterProp
+    if( FindClass == 4 & Lock ){
+        if( Target:parent():type() != "Gmod_Wire_Gate" ){
+            Target = Target:parent()
+        } else{ !Lock }
+    }
+    
+    # HESD
+    if( ( changed( Key_M ) & Key_M ) & HEAmmo ){ HESD = !HESD }
+    if( HESD & !HEAmmo | HESD & !Lock | HESD & Shift ){ HESD = 0 }
+    if( changed( HESD ) & HESD ){
+        if( !HESDProp ){
+            # HESDProp Setting
+            HESDProp = propSpawn( "models/sprops/rectangles/size_90/rect_90x192x3.mdl", NULLVector, 1 )
+            
+            HESDProp:setNoCollideAll()
+            HESDProp:propGravity( 0 )
+            HESDProp:propDrag( 0 )
+            HESDProp:propDraw( 0 )
+            HESDProp:propFreeze( 1 )
+            HESDProp:setMass( 50000 )
+        }
+        
+        Gun:soundPlay( 4, 1, ModSound )
+    } else{ if( !HESD ){ HESDProp:propDelete() } }
+    if( HESD ){
+        HESDVector = vec( 0, 0, 200 )
+        HESDProp:setPos( TargetPosition )
+        HESDProp:setAng( Gun:toWorld( ang( 0, 90, 90 ) ) )
+    } else{ HESDVector = NULLVector }
+    
+    # APDA
+    if( ( changed( Key_M ) & Key_M ) & APAmmo ){ APDA = !APDA }
+    if( APDA & !APAmmo | APDA & !Lock | APDA & Shift ){ APDA = 0 }
+    if( changed( APDA ) & APDA ){
+        if( !APDAProp ){
+            # APDAProp Setting
+            APDAProp = propSpawn( "models/sprops/rectangles_thin/size_6/rect_96x480x1_5.mdl", NULLVector, 1 )
+            
+            APDAProp:setNoCollideAll()
+            APDAProp:propGravity( 0 )
+            APDAProp:propDrag( 0 )
+            APDAProp:propDraw( 0 )
+            APDAProp:propFreeze( 1 )
+            APDAProp:setMass( 50000 )
+        }
+        
+        Gun:soundPlay( 4, 1, ModSound )
+    } else{ if( !APDA ){ APDAProp:propDelete() } }
+    if( APDA ){
+        APDAVector = vec( 0, 0, 200 )
+        APDAProp:setPos( #[Gun:pos() + Gun:forward() * Distance * 48.55 ]# TargetPosition )
+        APDAProp:setAng( Gun:toWorld( ang( 16, 0, 0 ) ) )
+    } else{ APDAVector = NULLVector }
+    
+    # ParentedTarget Prediction
+    TargetVelocity = toUnit( "m/s", Target:vel():length() )
+    if( ( Lock | RangerEntity ) & TargetVelocity == 0 ){
+        if( Target:parent() ){
+            Parented   = 1
+            DPosition  = Target:pos()
+            DVelocity  = $DPosition
+            Prediction = ( ( DVelocity * 1.25 ) * TravelTime ) * ToUnit - ( ( DVelocity * 4.65 + HECurrection ) * HEAmmo )
+        } else{
+            Prediction = NULLVector
+            Parented   = 0
+        }
+    } else{ Parented   = 0 }
+    #---END---#
+    
+    # Calculation Of Trajectory
+    Distance           = toUnit( "m/s", Gun:pos():distance( Vector ) )
+    TravelTime         = Distance / MuzzleVelocity
+    Gravity            = fromUnit( "m/s", GravityConstant * ( TravelTime ) ^ 2 )
+    Currection         = ( !Lock * ( -Ranger:entity():vel() ) * MovingTargetConstant + Lock * -Target:vel() * MovingTargetConstant - Gun:vel() * 0.9 ) * TravelTime
+    Stabilizer         = Currection * MovingFireConstant
+    S                  = ( ( Gun:massCenter() - Target:pos() ):normalized() * ( Gravity / Distance ) * 0.004 ) * APDA
+    
+    # GunAng Stuff
+    Angle              = Chair:toLocal( Driver:eyeAngles() )
+    Ranger             = rangerOffset( Range, Position, Angle:forward() )
+    GunAng             = ( ( Vector + CustomAimClamp + vec( 0, 0, Gravity ) + Stabilizer + Prediction ) - Gun:pos() ):toAngle()
+    
+    # AngForce Stuff
+    Force              = Gun:toWorld( clamp( Gun:toLocal( GunAng ), ang( -RotateSpeed ),ang( RotateSpeed ) ) )
+    Clamped            = clamp( entity():toLocal( Force ),ang( -Elevation, -Yaw, -1 ), ang( Depression, Yaw, 1 ) )
+    LocalToGun         = Gun:toLocal( entity():toWorld( Clamped ) )
+    Gun:applyAngForce( ( LocalToGun * ApplyAngForce - Gun:angVel() * ApplyAngForce * 0.14 ) * Inertia )
+    
+    # Turret RotateSound
+    LocalVelocity      = entity():toLocal( Gun:angles() ):yaw()
+    soundPitch( 1, ( abs( $LocalVelocity ) > 0.3 ) * 80 )
+    
+    # RangerFilter
+    rangerFilter( Gun )
+    rangerFilter( entity():getConstraints() )
+    rangerPersist( 1 )
+} else{
+    stoptimer( "interval" )
+    
+    soundPitch( 1, 0 )
+    
+    LatchActive = 1
+}
+
+# Lock End Element
+if( Lock & changed( Target:owner() ) | Lock & changed( String ) & FindClass | Lock > 1 | Lock & TargetPosition == vec( 0, 0, 0 ) | changed( Active ) & Active ){
+    Lock = 0
+    
+    soundVolume( 2, 0 )
+}
+
+Ops = ops()
+
+# Made By RuBid EZTankTurret FAFCS Block B V2018.12.27

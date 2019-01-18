@@ -1,0 +1,97 @@
+@name Engine On,Off & Engine, Reload Sound
+@inputs  [Pod]:wirelink [Turret]:entity [W Active Ready Speed RPM]
+@outputs [Thruster EngineActive EngineStartSoundPlay EngineShutDownSoundPlay EngineStartSoundPitch TrackSoundPlay TrackSoundVolume EngineSoundVolume TrackSoundPitch EngineSoundPitch GasSound GasSoundPitch First Ops]
+@persist [Dv]:entity
+
+runOnTick( 1 )
+
+if(first() | dupefinished() ){
+    
+    function keyPress(){
+        
+        Dv = Pod[ "Entity", entity ]:driver()
+        Key = Dv:keyPressed( "G" )
+    }
+}
+    
+if( Active ){
+    
+    keyPress()
+}
+
+if( changed( Key ) & Key ){
+    
+    EngineActive = !EngineActive
+    
+    EngineStartSoundPlay = 1
+    EngineSoundPlay = 1
+    
+    GasSound = 1
+    
+    if( !EngineActive ){
+        
+        EngineShutDownSoundPlay = 1
+        
+        EngineStartSoundPlay = 0
+        EngineSoundPlay = 0
+        
+        GasSound = 0
+    }
+        else{ EngineShutDownSoundPlay = 0 }
+}
+
+if( EngineActive & W ){
+    
+    Thruster = 1
+}
+    else{ Thruster = 0 }
+
+if( Speed > 2 ){ TrackSoundPlay = 1 }
+    else{ TrackSoundPlay = 0 }
+    
+    #Sound Volume
+    TrackSoundVolume = 120
+    EngineSoundVolume = 50 + ( RPM / 128 )
+    
+    #SoundPitch
+    TrackSoundPitch = Speed * 0.01 + 0.6
+    EngineSoundPitch = 0.5 + ( RPM / 1650.5 )
+    EngineStartSoundPitch = 0.785 + ( RPM / 2350.625 )
+    
+    GasSoundPitch = ( RPM / 2500 ) - ( Speed / 105 )
+    
+#Reload Sound
+if( ~Ready & Ready == 0 ){
+    
+    Turret:soundPlay( 1, 3, "acf_extra/tankfx/gnomefather/reload3.wav" )
+    timer( "Sound1", 2600 )
+}
+
+#Sound1
+if( clk( "Sound1" ) ){
+    
+    Turret:soundPlay( 2, 3 - 0.8, "acf_extra/tankfx/gnomefather/autoloader2.wav" )
+    timer( "Sound2", 1600 )
+}
+
+#Sound2
+if( clk( "Sound2" ) ){
+    
+    Turret:soundPlay( 3, 3, "acf_extra/tankfx/gnomefather/autoloader5.wav" )
+    timer( "Sound3", 2000 )
+}
+
+#Sound3
+if( clk( "Sound3" ) ){
+    
+    Turret:soundPlay( 4, 3, "acf_extra/tankfx/gnomefather/autoloader4.wav" )
+    soundPitch( 4, 110 )
+    timer( "End", 3250 )
+}
+
+if( clk( "End" ) ){
+    
+    Turret:soundPlay( 5, 3, "npc/combine_soldier/vo/readycharges.wav" )
+}
+
+Ops = ops()
