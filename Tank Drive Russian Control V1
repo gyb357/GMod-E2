@@ -29,7 +29,7 @@ if(first() | dupefinished()) {
     TurnBrake = 10
     
     # Drive Setting
-    ReverseADControl = 0
+    ReverseADControl = 1
     AutoBrake        = 1
     
     # Sound Setting
@@ -50,13 +50,14 @@ if(first() | dupefinished()) {
         X  = egpScrSize(Driver):x()
         Y  = egpScrSize(Driver):y()
         V2 = vec2(X, Y) / ScreenSize
+        
     }
     
     function void key() {
         EngineActiveKey = Driver:keyPressed(EngineStartKey)
         if(changed(EngineActiveKey) & EngineActiveKey) {EngineActive = !EngineActive}
     }
-    
+        
     Base:soundPlay(2, 0, TrackSound)
     soundVolume(1, 0)
     soundVolume(2, 0)
@@ -64,14 +65,17 @@ if(first() | dupefinished()) {
 
 if(Active) {
     Driver = Pod["Entity", entity]:driver()
-    egp()
     if(changed(Active)) {
-        for(I = 1, 3) {
-            EGP:egpColor(I, vec(0, 250, 0))
-            EGP:egpAlign(I, 1)
-        }
         Cruise     = 0
         ManualGear = 0
+        
+        egp()
+        EGP:egpColor(1, vec(0, 250, 0))
+        EGP:egpAlign(1, 1)
+        EGP:egpColor(2, vec(0, 250, 0))
+        EGP:egpAlign(2, 1)
+        EGP:egpColor(3, vec(0, 250, 0))
+        EGP:egpAlign(3, 1)
     }
     EGP:egpText(1, "Manual Gear: " + MGear, vec2(226, 290) * V2)
     EGP:egpText(2, "Gear: " + MMode + " Mode", vec2(226, 300) * V2)
