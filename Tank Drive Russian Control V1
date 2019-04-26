@@ -66,20 +66,21 @@ if(first() | dupefinished()) {
 if(Active) {
     Driver = Pod["Entity", entity]:driver()
     if(changed(Active)) {
+        egp()
         Cruise     = 0
         ManualGear = 0
-        
-        egp()
-        EGP:egpColor(1, vec(0, 250, 0))
-        EGP:egpAlign(1, 1)
-        EGP:egpColor(2, vec(0, 250, 0))
-        EGP:egpAlign(2, 1)
-        EGP:egpColor(3, vec(0, 250, 0))
-        EGP:egpAlign(3, 1)
     }
+    
     EGP:egpText(1, "Manual Gear: " + MGear, vec2(226, 290) * V2)
     EGP:egpText(2, "Gear: " + MMode + " Mode", vec2(226, 300) * V2)
     EGP:egpText(3, "Drive:" + CMode + " Mode", vec2(226, 310) * V2)
+    EGP:egpColor(1, vec(0, 250, 0))
+    EGP:egpAlign(1, 1)
+    EGP:egpColor(2, vec(0, 250, 0))
+    EGP:egpAlign(2, 1)
+    EGP:egpColor(3, vec(0, 250, 0))
+    EGP:egpAlign(3, 1)
+    
     
     Speed = toUnit("km/h", Base:vel():length())
     SoundPitch = Speed * 2
