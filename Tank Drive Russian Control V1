@@ -29,7 +29,7 @@ if(first() | dupefinished()) {
     TurnBrake = 10
     
     # Drive Setting
-    ReverseADControl = 1
+    ReverseADControl = 0
     AutoBrake        = 1
     
     # Sound Setting
