@@ -1,10 +1,11 @@
 @name Tank Drive Russian Control V1
 @inputs  [Pod EGP]:wirelink [Base]:entity [CruiseMode ManualMode MGearUp MGearDown Active]
-@outputs [Throttle Gear CVTRatio LeftClutch RightClutch LeftBreak RightBreak EngineActive Speed Ops CpuUsage]
+@outputs [Throttle Gear LeftClutch RightClutch LeftBreak RightBreak EngineActive Speed Ops CpuUsage]
 @persist [Gear2 Gear3 Gear4 Gear5 Gear6 Gear7 Gear8]
-@persist [MinGear MaxGear Brake TurnBrake ReverseADControl AutoBrake TrackSoundEnable EngineSoundEnable] [EngineSound TrackSound EngineStartKey]:string
+@persist [MinGear MaxGear FirstMGear Brake TurnBrake ReverseADControl AutoBrake TrackSoundEnable EngineSoundEnable] [EngineSound TrackSound EngineStartKey]:string
 @persist [BavConstant ScreenSize]
-@persist [W A S D Cruise ManualGear Forward MGear AGear] [MMode CMode]:string
+@persist [X Y] [V2]:vector2
+@persist [Driver]:entity [MMode CMode]:string [W A S D Cruise ManualGear Forward MGear AGear]
 interval(64)
 
 if(first() | dupefinished()) {
@@ -19,8 +20,9 @@ if(first() | dupefinished()) {
     Gear8 = 70
     
     # Manual Gear MinMax Setting
-    MinGear = 0
-    MaxGear = 8
+    MinGear    = 0
+    MaxGear    = 8
+    FirstMGear = 1
     
     # Brake Setting
     Brake     = 10
@@ -49,10 +51,9 @@ if(first() | dupefinished()) {
     soundStop(2)
     
     function void egp() {
-        Driver = Pod["Entity", entity]:driver()
-        X      = egpScrSize(Driver):x()
-        Y      = egpScrSize(Driver):y()
-        V2     = vec2(X, Y) / ScreenSize
+        X  = egpScrSize(Driver):x()
+        Y  = egpScrSize(Driver):y()
+        V2 = vec2(X, Y) / ScreenSize
     }
     
     function void key() {
@@ -63,19 +64,21 @@ if(first() | dupefinished()) {
 
 if(Active) {
     if(changed(Active)) {
-        if(EGP) {egp()}
-        Cruise     = 0
-        ManualGear = 0
+        Driver = Pod["Entity", entity]:driver()
+        
+        if(changed(Driver)) {egp()}
         for(I = 1, 3) {
             EGP:egpColor(I, vec(0, 250, 0))
             EGP:egpAlign(I, 1)
         }
+        Cruise     = 0
+        ManualGear = 0
     }
     EGP:egpText(1, "Manual Gear: " + MGear, vec2(226, 290) * V2)
     EGP:egpText(2, "Gear: " + MMode + " Mode", vec2(226, 300) * V2)
     EGP:egpText(3, "Drive:" + CMode + " Mode", vec2(226, 310) * V2)
     
-    key()
+    if(Driver) {key()}
     
     if(EngineActive) {
         W     = Pod["W", number]
@@ -92,19 +95,6 @@ if(Active) {
         soundPitch(2, SoundPitch * TrackSoundEnable)
     }
     
-    if(Forward | A | S | D) {
-        Throttle = 100
-        
-        LeftBreak  = 0
-        RightBreak = 0
-    } else {
-        if(AutoBrake) {
-            LeftBreak  = Brake
-            RightBreak = Brake
-        }
-        Throttle = 0
-    }
-    
     Right = ReverseADControl ? D : A
     Left  = ReverseADControl ? A : D
     Fwd   = !ReverseADControl ? W : S
@@ -113,7 +103,7 @@ if(Active) {
     if(changed(CruiseMode) & CruiseMode) {Cruise = !Cruise}
     if(changed(ManualMode) & ManualMode) {
         ManualGear = !ManualGear
-        MGear = 1
+        MGear = FirstMGear
     }
     
     if(changed(MGearUp) & MGearUp & ManualGear) {
@@ -138,6 +128,19 @@ if(Active) {
     elseif(Forward & Speed > Gear7 & Speed < Gear8) {AGear = 6}
     elseif(Forward & Speed > Gear8) {AGear = 7}
     elseif(S) {AGear = 8}
+    
+    if(Forward | A | S | D) {
+        Throttle = 100
+        
+        LeftBreak  = 0
+        RightBreak = 0
+    } else {
+        if(AutoBrake) {
+            LeftBreak  = Brake
+            RightBreak = Brake
+        }
+        Throttle = 0
+    }
     
     if(Left | Space * !AutoBrake) {
         LeftClutch = 1
