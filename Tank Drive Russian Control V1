@@ -79,7 +79,7 @@ if(Active) {
     EGP:egpText(3, "Drive:" + CMode + " Mode", vec2(226, 310) * V2)
     
     Speed = toUnit("km/h", Base:vel():length())
-    SoundPitch = Speed * 3 - Speed * 0.5
+    SoundPitch = Speed * 3 - Speed * 1
     if(Driver) {
         key()
         
