@@ -11,13 +11,13 @@ interval(64)
 if(first() | dupefinished()) {
     # ----- User Interface ----- #
     #Gear Setting
-    Gear2 = 7
+    Gear2 = 6
     Gear3 = 25
     Gear4 = 35
-    Gear5 = 45
-    Gear6 = 55
-    Gear7 = 65
-    Gear8 = 70
+    Gear5 = 48
+    Gear6 = 54
+    Gear7 = 58
+    Gear8 = 62
     
     # Manual Gear MinMax Setting
     MinGear    = 0
@@ -29,7 +29,7 @@ if(first() | dupefinished()) {
     TurnBrake = 10
     
     # Drive Setting
-    ReverseADControl = 0
+    ReverseADControl = 1
     AutoBrake        = 1
     
     # Sound Setting
@@ -63,10 +63,10 @@ if(first() | dupefinished()) {
 }
 
 if(Active) {
+    Driver = Pod["Entity", entity]:driver()
+    
     if(changed(Active)) {
-        Driver = Pod["Entity", entity]:driver()
-        
-        if(changed(Driver)) {egp()}
+        egp()
         for(I = 1, 3) {
             EGP:egpColor(I, vec(0, 250, 0))
             EGP:egpAlign(I, 1)
