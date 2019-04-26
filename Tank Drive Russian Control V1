@@ -11,13 +11,13 @@ interval(64)
 if(first() | dupefinished()) {
     # ----- User Interface ----- #
     #Gear Setting
-    Gear2 = 6
+    Gear2 = 7
     Gear3 = 25
     Gear4 = 35
-    Gear5 = 48
-    Gear6 = 54
-    Gear7 = 58
-    Gear8 = 62
+    Gear5 = 45
+    Gear6 = 55
+    Gear7 = 65
+    Gear8 = 70
     
     # Manual Gear MinMax Setting
     MinGear    = 0
@@ -29,7 +29,7 @@ if(first() | dupefinished()) {
     TurnBrake = 10
     
     # Drive Setting
-    ReverseADControl = 1
+    ReverseADControl = 0
     AutoBrake        = 1
     
     # Sound Setting
