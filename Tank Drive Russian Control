@@ -1,4 +1,4 @@
-@name Tank Drive Russian Control
+@name Tank Drive Russian Control V1
 @inputs  [Pod EGP]:wirelink [Base]:entity [CruiseMode ManualMode MGearUp MGearDown Active]
 @outputs [Throttle Gear CVTRatio LeftClutch RightClutch LeftBreak RightBreak EngineActive Speed Ops CpuUsage]
 @persist [Gear2 Gear3 Gear4 Gear5 Gear6 Gear7 Gear8]
@@ -181,4 +181,4 @@ if(Active) {
     Ops      = ops()
     CpuUsage = cpuUsage() * 1000000
     
-# Made By RuBid Tank Drive Russian Controll V2019.04.26
+# Made By RuBid Tank Drive Russian Control V2019.04.26
