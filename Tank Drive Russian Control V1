@@ -64,9 +64,8 @@ if(first() | dupefinished()) {
 
 if(Active) {
     Driver = Pod["Entity", entity]:driver()
-    
+    egp()
     if(changed(Active)) {
-        egp()
         for(I = 1, 3) {
             EGP:egpColor(I, vec(0, 250, 0))
             EGP:egpAlign(I, 1)
