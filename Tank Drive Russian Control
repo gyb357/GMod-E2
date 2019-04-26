@@ -1,0 +1,184 @@
+@name Tank Drive Russian Control
+@inputs  [Pod EGP]:wirelink [Base]:entity [CruiseMode ManualMode MGearUp MGearDown Active]
+@outputs [Throttle Gear CVTRatio LeftClutch RightClutch LeftBreak RightBreak EngineActive Speed Ops CpuUsage]
+@persist [Gear2 Gear3 Gear4 Gear5 Gear6 Gear7 Gear8]
+@persist [MinGear MaxGear Brake TurnBrake ReverseADControl AutoBrake TrackSoundEnable EngineSoundEnable] [EngineSound TrackSound EngineStartKey]:string
+@persist [BavConstant ScreenSize]
+@persist [Cruise ManualGear Forward MGear AGear]
+@persist [W A S D] [MMode CMode]:string
+interval(64)
+
+if(first() | dupefinished()) {
+    # ----- User Interface ----- #
+    #Gear Setting
+    Gear2 = 7
+    Gear3 = 25
+    Gear4 = 35
+    Gear5 = 45
+    Gear6 = 55
+    Gear7 = 65
+    Gear8 = 70
+    
+    # Manual Gear MinMax Setting
+    MinGear = 0
+    MaxGear = 8
+    
+    # Brake Setting
+    Brake     = 10
+    TurnBrake = 10
+    
+    # Drive Setting
+    ReverseADControl = 1
+    AutoBrake        = 1
+    
+    # Sound Setting
+    TrackSoundEnable  = 1
+    EngineSoundEnable = 1
+    EngineSound       = "acf_extra/vehiclefx/engines/LAV_loop.wav"
+    TrackSound        = "acf_extra/tankfx/tracks2.wav"
+    
+    # Key Setting
+    EngineStartKey = "g"
+    
+    # ----- Do Not Touch Thise ----- #
+        BavConstant = 10
+        ScreenSize  = 512
+        
+    Base:soundPlay(1, 0, EngineSound)
+    Base:soundPlay(2, 0, TrackSound)
+    soundStop(1)
+    soundStop(2)
+    
+    function void egp() {
+        Driver = Pod["Entity", entity]:driver()
+        X      = egpScrSize(Driver):x()
+        Y      = egpScrSize(Driver):y()
+        V2     = vec2(X, Y) / ScreenSize
+    }
+    
+    function void key() {
+        EngineActiveKey = Driver:keyPressed(EngineStartKey)
+        if(changed(EngineActiveKey) & EngineActiveKey) {EngineActive = !EngineActive}
+    }
+}
+
+if(Active) {
+    if(changed(Active)) {
+        if(EGP) {egp()}
+        Cruise     = 0
+        ManualGear = 0
+        for(I = 1, 3) {
+            EGP:egpColor(I, vec(0, 250, 0))
+            EGP:egpAlign(I, 1)
+        }
+    }
+    EGP:egpText(1, "Manual Gear: " + MGear, vec2(226, 290) * V2)
+    EGP:egpText(2, "Gear: " + MMode + " Mode", vec2(226, 300) * V2)
+    EGP:egpText(3, "Drive:" + CMode + " Mode", vec2(226, 310) * V2)
+    
+    key()
+    
+    if(EngineActive) {
+        W     = Pod["W", number]
+        A     = Pod["A", number]
+        S     = Pod["S", number]
+        D     = Pod["D", number]
+        Space = Pod["Space", number]
+        
+        Speed = toUnit("km/h", Base:vel():length())
+        
+        SoundPitch = Speed * 3.5 - Speed * 0.5
+        
+        soundPitch(1, SoundPitch * EngineSoundEnable)
+        soundPitch(2, SoundPitch * TrackSoundEnable)
+    }
+    
+    if(Forward | A | S | D) {
+        Throttle = 100
+        
+        LeftBreak  = 0
+        RightBreak = 0
+    } else {
+        if(AutoBrake) {
+            LeftBreak  = Brake
+            RightBreak = Brake
+        }
+        Throttle = 0
+    }
+    
+    Right = ReverseADControl ? D : A
+    Left  = ReverseADControl ? A : D
+    Fwd   = !ReverseADControl ? W : S
+    Bck   = !ReverseADControl ? S : W
+    
+    if(changed(CruiseMode) & CruiseMode) {Cruise = !Cruise}
+    if(changed(ManualMode) & ManualMode) {
+        ManualGear = !ManualGear
+        MGear = 1
+    }
+    
+    if(changed(MGearUp) & MGearUp & ManualGear) {
+        MGear += 1
+    } elseif(changed(MGearDown) & MGearDown & ManualGear) {
+        MGear -= 1
+    } elseif(!ManualGear) {
+        MGear = 0
+    }
+    MGear = clamp(MGear, MinGear, MaxGear)
+    
+    Forward = Cruise ? 1 : W
+    Gear    = !ManualGear ? (Forward + S) * AGear : MGear
+    MMode   = ManualGear ? "Manual" : "Auto"
+    CMode   = Cruise ? "Cruise" : "None"
+    
+    if(Forward & Speed < Gear2) {AGear = 1}
+    elseif(Forward & Speed > Gear2 & Speed < Gear4) {AGear = 2}
+    elseif(Forward & Speed > Gear4 & Speed < Gear5) {AGear = 3}
+    elseif(Forward & Speed > Gear5 & Speed < Gear6) {AGear = 4}
+    elseif(Forward & Speed > Gear6 & Speed < Gear7) {AGear = 5}
+    elseif(Forward & Speed > Gear7 & Speed < Gear8) {AGear = 6}
+    elseif(Forward & Speed > Gear8) {AGear = 7}
+    elseif(S) {AGear = 8}
+    
+    if(Left | Space * !AutoBrake) {
+        LeftClutch = 1
+        LeftBreak  = Brake
+    } else {
+        LeftClutch = 0
+    }
+    
+    if(Right | Space * !AutoBrake) {
+        RightClutch = 1
+        RightBreak  = Brake
+    } else {
+        RightClutch = 0
+    }
+    
+    if(!A & !D & Speed > BavConstant / 2) {Bav = round(Base:angVel():yaw())} else {Bav = 0}
+    
+    if(Bav > BavConstant) {
+        LeftBreak   = Brake * Fwd
+        RightBreak  = Brake * Bck
+        
+        LeftClutch  = TurnBrake * Fwd
+        RightClutch = TurnBrake * Bck
+    }
+    if(Bav < -BavConstant) {
+        LeftBreak   = Brake * Bck
+        RightBreak  = Brake * Fwd
+        
+        LeftClutch  = TurnBrake * Bck
+        RightClutch = TurnBrake * Fwd
+    }
+} else {
+    LeftBreak  = Brake
+    RightBreak = Brake
+    
+    soundStop(1)
+    soundStop(2)
+}
+
+    Ops      = ops()
+    CpuUsage = cpuUsage() * 1000000
+    
+# Made By RuBid Tank Drive Russian Controll V2019.04.26
