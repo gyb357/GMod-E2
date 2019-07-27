@@ -1,0 +1,115 @@
+@name Shit-ora V1
+@inputs  [Target Sensor]:entity [Active]
+@outputs [OptCom]:entity [CpuUsage Ops] Model:string
+@persist [SpawnDist FindAngle HideHolo HideProp FindExcludeOwnProp]
+@persist [Own]:entity [Model1 Model2]:string
+@persist [Prop]:entity [Model]:string [Find Detected Dist]
+interval(32)
+
+if (first() | dupefinished()) {
+    # ----- User Interface ----- #
+    SpawnDist = 50
+    FindAngle = 20
+    HideHolo  = 0
+    HideProp  = 1
+    
+    FindExcludeOwnProp = 1
+    
+    # ----- Do Not Touch There ----- #
+        Own    = owner()
+        Model1 = "acf_opticalcomputer"
+        Model2 = "acf_gun"
+        
+    function entity findEntity() {
+        Model = Target & OptCom:type() != Model1 ? Model2 : Model1
+        if (FindExcludeOwnProp) {
+            findExcludePlayerProps(Own)
+        }
+        findByClass(Model)
+        findSortByDistance(Target:pos())
+        Ary    = findToArray()
+        OptCom = Ary[1, entity]
+        
+        return OptCom
+    }
+    
+    function number condition() {
+        function number detected() {
+            MissileToRackDist = toUnit("m", Target:pos():distance(OptCom:pos()))
+            
+            Detected = MissileToRackDist > 1 ? 1 : 0
+            
+            return Detected
+        }
+        
+        function number glatgmAngle() {
+            PosToAng  = (Target:pos() - Sensor:pos()):toAngle()
+            GunAng    = (Target:forward():toAngle())
+            
+            Yaw   = abs(PosToAng:yaw() - GunAng:yaw())
+            Pitch = abs(abs(PosToAng:pitch() - GunAng:pitch()) - 180)
+            
+            Yaw_O = abs(abs(Sensor:angles():yaw() - Target:angles():yaw() + 180))
+            
+            Yaw_M   = Yaw > 180 - FindAngle & Yaw < 180 + FindAngle & Yaw_O < FindAngle
+            Pitch_M = Pitch > 180 - FindAngle & Pitch < 180 + FindAngle
+            
+            Find = Yaw_M & Pitch_M ? 1 : 0
+            
+            return Find
+        }
+        
+        if (Target) {
+            detected()
+            glatgmAngle()
+            Dist = toUnit("m", Target:pos():distance(Sensor:pos()))
+        } else {
+            Detected = 0
+            Dist     = 0
+        }
+        
+        Spawn = Dist < SpawnDist & Detected & Find ? 1 : 0
+        
+        return Spawn
+    }
+    
+    function void sensorAngle() {
+        holoCreate(1)
+        holoModel(1, "models/sprops/misc/cones/size_0/cone_6x6.mdl")
+        holoScale(1, vec(2, 2, 2))
+        holoColor(1, vec(250, 0, 0))
+        holoPos(1, Sensor:massCenter() + Sensor:forward() * Sensor:boxSize() * 5)
+        holoAng(1, Sensor:forward():toAngle() + ang(90, 0, 0))
+        holoAlpha(1, 255 * !HideHolo)
+        holoParent(1, Sensor)
+    }
+    
+    sensorAngle()
+}
+
+if (Active) {
+    findEntity()
+    condition()
+    
+    if (Spawn) {
+        if (!Prop) {
+            Pos  = Model == Model1 ? OptCom:pos() : OptCom:pos() + (OptCom:massCenter() - OptCom:pos()):normalized() * 60
+            Prop = propSpawn("models/hunter/blocks/cube2x2x2.mdl", Pos, ang(0, 0, 0), 1)
+            Prop:propDraw(!HideProp)
+            Prop:setMass(100)
+        } else {
+            if (!Target) {
+                Prop:propDelete()
+            }
+        }
+    } else {
+        Prop:propDelete()
+    }
+} else {
+    Prop:propDelete()
+}
+
+    CpuUsage = cpuUsage() * 1000000
+    Ops      = ops()
+    
+# Made By RuBid Shit-ora V1 V2019.07.27
