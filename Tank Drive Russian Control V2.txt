@@ -1,0 +1,226 @@
+@name Tank Drive Russian Control V2
+@inputs  [Pod EGP]:wirelink [Base]:entity [CruiseMode ManualMode GearSpeedUp GearSpeedDown Active]
+@outputs [Throttle Gear LeftClutch RightClutch LeftBreak RightBreak EngineActive Speed Ops CpuUsage] CruiseForward
+@persist [Gear2 Gear3 Gear4 Gear5 Gear6 Gear7 Gear8]
+@persist [MinGear MaxGear Brake TurnBrake ReverseADControl AutoBrake TrackSoundEnable EngineSoundEnable EngineSoundPitch] [EngineSound TrackSound EngineStartKey]:string
+@persist [BavConstant ScreenSize]
+@persist [X Y] [V2]:vector2
+@persist [Driver]:entity [MMode CMode]:string [W A S D Cruise ManualGear Forward Back MGear AGear CruiseForward]
+interval(64)
+
+if(first() | dupefinished()) {
+    # ----- User Interface ----- #
+    #Gear Setting
+    Gear2 = 13
+    Gear3 = 25
+    Gear4 = 35
+    Gear5 = 55
+    Gear6 = 70
+    Gear7 = 80
+    Gear8 = 85
+    
+    # Manual Gear MinMax Setting
+    MinGear = 0
+    MaxGear = 8
+    
+    # Brake Setting
+    Brake     = 8
+    TurnBrake = 10
+    
+    # Drive Setting
+    ReverseADControl = 0
+    AutoBrake        = 1
+    
+    # Sound Setting
+    TrackSoundEnable  = 1
+    EngineSoundEnable = 1
+    EngineSoundPitch  = 80
+    EngineSound       = "acf_extra/vehiclefx/engines/gtk.wav"
+    TrackSound        = "acf_extra/tankfx/bmp_tracks.wav"
+    
+    # Key Setting
+    EngineStartKey = "g"
+    
+    # ----- Do Not Touch Thise ----- #
+        BavConstant = 10
+        ScreenSize  = 512
+    
+    function void key() {
+        EngineActiveKey = Driver:keyPressed(EngineStartKey)
+        if(changed(EngineActiveKey) & EngineActiveKey) {EngineActive = !EngineActive}
+    }
+    
+    Base:soundPlay(2, 0, TrackSound)
+    soundVolume(1, 0)
+    soundVolume(2, 0)
+}
+
+if(Active) {
+    Driver = Pod["Entity", entity]:driver()
+    
+    EGP:egpText(1, "Manual Gear: " + MGear, vec2(226, 290) * V2)
+    EGP:egpText(2, "Gear: " + MMode + " Mode", vec2(226, 300) * V2)
+    EGP:egpText(3, "Drive:" + CMode + " Mode", vec2(226, 310) * V2)
+    
+    Speed = toUnit("km/h", Base:vel():length())
+    SoundPitch = Speed * 2.5
+    if(Driver) {
+        key()
+        soundPitch(2, SoundPitch * TrackSoundEnable)
+        soundVolume(2, 1)
+    }
+    
+    if(EngineActive) {
+        W     = Pod["W", number]
+        A     = Pod["A", number]
+        S     = Pod["S", number]
+        D     = Pod["D", number]
+        Space = Pod["Space", number]
+    }
+    
+    Right = ReverseADControl ? D : A
+    Left  = ReverseADControl ? A : D
+    Fwd   = !ReverseADControl ? Forward : Back
+    Bck   = !ReverseADControl ? Back : Forward
+    
+    if(changed(CruiseMode) & CruiseMode) {Cruise = !Cruise}
+    if(changed(ManualMode) & ManualMode) {
+        ManualGear = !ManualGear
+        MGear      = 0
+    }
+    
+    if(ManualGear) {
+        if(changed(GearSpeedUp) & GearSpeedUp) {MGear += 1}
+        elseif(changed(GearSpeedDown) & GearSpeedDown) {MGear -= 1}
+    } else {
+        MGear = 0
+    }
+    MGear = clamp(MGear, MinGear, MaxGear)
+    
+    if(Cruise) {
+        if(changed(W) & W) {
+            CruiseForward = !CruiseForward
+        }
+        if(changed(S) & S) {
+            CruiseForward = !CruiseForward * -1
+        }
+    } else {
+        CruiseForward = 0
+    }
+    
+    W = CruiseForward == -1 ? 0 : W
+    S = CruiseForward == 1 ? 0 : S
+    Forward = CruiseForward == 1 ? 1 : W
+    Back    = CruiseForward == -1 ? 1 : S
+    
+    Gear = !ManualGear ? (Forward + Back) * AGear : MGear
+    
+    MMode = ManualGear ? "Manual" : "Auto"
+    CMode = Cruise ? "Cruise" : "None"
+    
+    if(Forward & Speed < Gear2) {AGear = 1}
+    elseif(Forward & Speed > Gear2 & Speed < Gear4) {AGear = 2}
+    elseif(Forward & Speed > Gear4 & Speed < Gear5) {AGear = 3}
+    elseif(Forward & Speed > Gear5 & Speed < Gear6) {AGear = 4}
+    elseif(Forward & Speed > Gear6 & Speed < Gear7) {AGear = 5}
+    elseif(Forward & Speed > Gear7 & Speed < Gear8) {AGear = 6}
+    elseif(Forward & Speed > Gear8) {AGear = 7}
+    elseif(S) {AGear = 8}
+    
+    if(Forward | A | Back | D) {
+        Throttle = 100
+        
+        LeftBreak  = 0
+        RightBreak = 0
+    } else {
+        if(AutoBrake | !CruiseForward) {
+            LeftBreak  = Brake
+            RightBreak = Brake
+        }
+        Throttle = 0
+    }
+    
+    if(Left | Space * !AutoBrake) {
+        if(!Forward & Left) {
+            Forward = 1
+            Gear    = (!Gear ? 1 : 0) + Gear
+        }
+        LeftClutch = 1
+        LeftBreak  = Brake
+    } else {
+        LeftClutch = 0
+    }
+    
+    if(Right | Space * !AutoBrake) {
+        if(!Forward & Right) {
+            Forward = 1
+            Gear    = (!Gear ? 1 : 0) + Gear
+        }
+        RightClutch = 1
+        RightBreak  = Brake
+    } else {
+        RightClutch = 0
+    }
+    
+    if(!A & !D & Speed > BavConstant / 2) {
+        Bav = round(Base:angVel():yaw())
+    } else {
+        Bav = 0
+    }
+    
+    if(Bav > BavConstant) {
+        LeftBreak   = TurnBrake * Fwd
+        RightBreak  = TurnBrake * Bck
+        
+        LeftClutch  = TurnBrake * Fwd
+        RightClutch = TurnBrake * Bck
+    }
+    if(Bav < -BavConstant) {
+        LeftBreak   = TurnBrake * Bck
+        RightBreak  = TurnBrake * Fwd
+        
+        LeftClutch  = TurnBrake * Bck
+        RightClutch = TurnBrake * Fwd
+    }
+} else {
+    Throttle = 0
+    
+    LeftBreak  = Brake
+    RightBreak = Brake
+    
+    soundVolume(2, 0)
+}
+
+if(changed(Active)) {
+    Cruise     = 0
+    ManualGear = 0
+    
+    X  = egpScrSize(Driver):x()
+    Y  = egpScrSize(Driver):y()
+    V2 = vec2(X, Y) / ScreenSize
+    
+    EGP:egpColor(1, vec(0, 250, 0))
+    EGP:egpAlign(1, 1)
+    EGP:egpColor(2, vec(0, 250, 0))
+    EGP:egpAlign(2, 1)
+    EGP:egpColor(3, vec(0, 250, 0))
+    EGP:egpAlign(3, 1)
+}
+
+if(EngineActive) {
+    soundStop(3)
+    soundPitch(1, SoundPitch * 0.3 + EngineSoundPitch * EngineSoundEnable)
+} else {
+    soundStop(1, 0)
+}
+if(changed(!EngineActive) & !EngineActive) {
+    soundPlay(3, 3, "acf_extra/vehiclefx/engines/LAV_stop.wav")
+    soundPitch(3, 80)
+}
+
+if(changed(EngineActive)) {Base:soundPlay(1, 0, EngineSound)}
+
+    Ops      = ops()
+    CpuUsage = cpuUsage() * 1000000
+    
+# Made By RuBid Tank Drive Russian Control V2 V2019.05.04
