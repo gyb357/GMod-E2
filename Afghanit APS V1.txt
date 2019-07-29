@@ -100,7 +100,6 @@ if (first() | dupefinished()) {
                     Used      = 0
                     stoptimer("Reload")
                 }
-
                 
                 return Used
             }
