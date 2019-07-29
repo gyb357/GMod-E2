@@ -1,15 +1,15 @@
 @name Shit-ora V1
 @inputs  [Target Sensor]:entity [Active]
-@outputs [OptCom]:entity [CpuUsage Ops] Model:string
+@outputs [OptCom]:entity [CpuUsage Ops]
 @persist [SpawnDist FindAngle HideHolo HideProp FindExcludeOwnProp]
-@persist [Own]:entity [Model1 Model2]:string
-@persist [Prop]:entity [Model]:string [Find Detected Dist]
+@persist [Own]:entity [Class1 Class2]:string
+@persist [Prop]:entity [Class]:string [Find Detected Dist]
 interval(32)
 
 if (first() | dupefinished()) {
     # ----- User Interface ----- #
     SpawnDist = 50
-    FindAngle = 20
+    FindAngle = 50
     HideHolo  = 0
     HideProp  = 1
     
@@ -17,15 +17,15 @@ if (first() | dupefinished()) {
     
     # ----- Do Not Touch There ----- #
         Own    = owner()
-        Model1 = "acf_opticalcomputer"
-        Model2 = "acf_gun"
+        Class1 = "acf_opticalcomputer"
+        Class2 = "acf_gun"
         
     function entity findEntity() {
-        Model = Target & OptCom:type() != Model1 ? Model2 : Model1
+        Class = Target & OptCom:type() != Class1 ? Class2 : Class1
         if (FindExcludeOwnProp) {
             findExcludePlayerProps(Own)
         }
-        findByClass(Model)
+        findByClass(Class)
         findSortByDistance(Target:pos())
         Ary    = findToArray()
         OptCom = Ary[1, entity]
@@ -49,9 +49,9 @@ if (first() | dupefinished()) {
             Yaw   = abs(PosToAng:yaw() - GunAng:yaw())
             Pitch = abs(abs(PosToAng:pitch() - GunAng:pitch()) - 180)
             
-            Yaw_O = abs(abs(Sensor:angles():yaw() - Target:angles():yaw() + 180))
+            Yaw_O = abs(abs(Sensor:angles():yaw() - Target:angles():yaw()))
             
-            Yaw_M   = Yaw > 180 - FindAngle & Yaw < 180 + FindAngle & Yaw_O < FindAngle
+            Yaw_M   = Yaw > 180 - FindAngle & Yaw < 180 + FindAngle & Yaw_O > 180 - FindAngle & Yaw_O < 180 + FindAngle
             Pitch_M = Pitch > 180 - FindAngle & Pitch < 180 + FindAngle
             
             Find = Yaw_M & Pitch_M ? 1 : 0
@@ -93,7 +93,7 @@ if (Active) {
     
     if (Spawn) {
         if (!Prop) {
-            Pos  = Model == Model1 ? OptCom:pos() : OptCom:pos() + (OptCom:massCenter() - OptCom:pos()):normalized() * 60
+            Pos  = Class == Class1 ? OptCom:pos() : OptCom:pos() + (OptCom:massCenter() - OptCom:pos()):normalized() * 60
             Prop = propSpawn("models/hunter/blocks/cube2x2x2.mdl", Pos, ang(0, 0, 0), 1)
             Prop:propDraw(!HideProp)
             Prop:setMass(100)
@@ -112,4 +112,4 @@ if (Active) {
     CpuUsage = cpuUsage() * 1000000
     Ops      = ops()
     
-# Made By RuBid Shit-ora V1 V2019.07.27
+# Made By RuBid Shit-ora V1 V2019.07.28
