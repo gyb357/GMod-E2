@@ -1,8 +1,9 @@
 @name Ammo SetUp
 @inputs  [Pod]:wirelink [Gun]:entity
-@outputs [Index AmmoType]:array [AmmoIndex]:number [AmmoText]:string [CpuOps]:array
+@outputs [AmmoText]:string [CpuOps]:array
 @persist [ChangeAmmo]:string 
 @persist [Links]:array [Own]:entity
+@persist [Index AmmoType]:array [AmmoIndex]:number 
 interval(64)
 
 if (first() | dupefinished()) {
@@ -70,4 +71,3 @@ if (changed(Gun:acfLinks():count())) {
     CpuOps = array(cpuUsage() * 1000000, ops())
     
 # Made By RuBid Ammo SetUp V2019.09.25
-
