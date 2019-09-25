@@ -44,7 +44,7 @@ if (first() | dupefinished()) {
     }
     
     function void ammoActive() {
-        if ((first() | dupefinished()) | (changed(Change) & Change) | changed(Gun:acfAmmoCount()) & Gun:acfAmmoCount()) {
+        if (first() | dupefinished() | (changed(Change) & Change) | changed(Gun:acfAmmoCount()) & Gun:acfAmmoCount()) {
             for (I = 1, Links:count()) {
                 if(AmmoType[AmmoIndex, string] == Links[I, entity]:acfAmmoType()) {
                     Links[I, entity]:acfActive(1)
