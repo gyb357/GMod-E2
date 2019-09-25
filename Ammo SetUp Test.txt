@@ -1,0 +1,73 @@
+@name Ammo SetUp Test
+@inputs  [Gun]:entity
+@outputs [Index AmmoType]:array [AmmoIndex]:number [AmmoText]:string [CpuOps]:array
+@persist [ChangeAmmo]:string 
+@persist [Links]:array [Count]:number [Own]:entity
+interval(64)
+
+if (first() | dupefinished()) {
+    ChangeAmmo = "r"
+    
+    Links = Gun:acfLinks()
+    Count = Gun:acfAmmoCount()
+    
+    Own = owner()
+    
+    function void searchAmmo() {
+        if (first()) {
+            for (I = 1, Links:count()) {
+                local Ammo = Gun:acfLinks()
+                local Type = Ammo[I, entity]:acfAmmoType()
+                
+                if (changed(Type) & Type) {
+                    Index:pushEntity(Ammo[I, entity])
+                }
+            }
+            
+            for (I = 1, Index:count()) {
+                AmmoType:pushString(Index[I, entity]:acfAmmoType())
+            }
+        }
+    }
+    
+    function void ammoSelect() {
+        Change = Own:keyPressed(ChangeAmmo)
+        
+        if (first()) {
+            AmmoIndex = 1
+        }
+        
+        if (changed(Change) & Change) {
+            AmmoIndex += AmmoIndex < AmmoType:count() ? 1 : -AmmoType:count() + 1
+        }
+        
+        AmmoText = AmmoType[AmmoIndex, string] + " (" + Gun:acfAmmoType() + ") " + Gun:acfAmmoCount()
+    }
+    
+    function void ammoActive() {
+        if ((first() | dupefinished()) | (changed(Change) & Change) | changed(Count) & Count) {
+            for (I = 1, Links:count()) {
+                if(AmmoType[AmmoIndex, string] == Links[I, entity]:acfAmmoType()) {
+                    Links[I, entity]:acfActive(1)
+                } else {
+                    Links[I, entity]:acfActive(0)
+                }
+            }
+        }
+    }
+    
+    function void resetE2() {
+        if (changed(Links:count())) {
+            reset()
+        }
+    }
+}
+
+if (1) {
+    searchAmmo()
+    ammoSelect()
+    ammoActive()
+    resetE2()
+}
+
+    CpuOps = array(cpuUsage() * 1000000, ops())
