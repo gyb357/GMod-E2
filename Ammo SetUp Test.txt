@@ -2,14 +2,13 @@
 @inputs  [Gun]:entity
 @outputs [Index AmmoType]:array [AmmoIndex]:number [AmmoText]:string [CpuOps]:array
 @persist [ChangeAmmo]:string 
-@persist [Links]:array [Count]:number [Own]:entity
+@persist [Links]:array [Own]:entity
 interval(64)
 
 if (first() | dupefinished()) {
     ChangeAmmo = "r"
     
     Links = Gun:acfLinks()
-    Count = Gun:acfAmmoCount()
     
     Own = owner()
     
@@ -45,7 +44,7 @@ if (first() | dupefinished()) {
     }
     
     function void ammoActive() {
-        if ((first() | dupefinished()) | (changed(Change) & Change) | changed(Count) & Count) {
+        if ((first() | dupefinished()) | (changed(Change) & Change) | changed(Gun:acfAmmoCount()) & Gun:acfAmmoCount()) {
             for (I = 1, Links:count()) {
                 if(AmmoType[AmmoIndex, string] == Links[I, entity]:acfAmmoType()) {
                     Links[I, entity]:acfActive(1)
@@ -57,7 +56,7 @@ if (first() | dupefinished()) {
     }
     
     function void resetE2() {
-        if (changed(Links:count())) {
+        if (changed(Gun:acfLinks():count())) {
             reset()
         }
     }
