@@ -67,9 +67,8 @@ if (changed(Active)) {
 if (Active) {
     ammoSelect()
     ammoActive()
-}
-
     resetE2()
+}
     
     CpuOps = array(cpuUsage() * 1000000, ops())
     
