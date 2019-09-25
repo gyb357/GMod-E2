@@ -47,12 +47,6 @@ if (first() | dupefinished()) {
             }
         }
     }
-    
-    function void resetE2() {
-        if (changed(Gun:acfLinks():count())) {
-            reset()
-        }
-    }
 }
 
 if (first()) {
@@ -67,9 +61,13 @@ if (changed(Active)) {
 if (Active) {
     ammoSelect()
     ammoActive()
-    resetE2()
 }
-    
+
+if (changed(Gun:acfLinks():count())) {
+    reset()
+}
+
     CpuOps = array(cpuUsage() * 1000000, ops())
     
 # Made By RuBid Ammo SetUp V2019.09.25
+
