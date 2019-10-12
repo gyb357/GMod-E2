@@ -1,0 +1,181 @@
+@name Ammo SetUp V4
+@inputs  [Pod]:wirelink [Gun]:entity
+@outputs [AmmoText]:string [CpuOps]:array A B Debug
+@persist [ChangeAmmo]:string [PrintDebug]:number
+@persist [ColorArray PrintArray]:array [Own]:entity
+@persist [Table CountTable]:table [FindAmmoAry EntInd Count]:array [Type]:string [Search Linked NoLink Change AmmoIndex AllRoudes Debug]:number [Chair Driver]:entity
+interval(64)
+
+if (first() | dupefinished()) {
+    # ----- User Interface ----- #
+    ChangeAmmo = "r"
+    
+    PrintDebug = 1
+    
+    # ----- Do Not Touch These ----- #
+        ColorArray = array(vec(250, 0, 0), vec(150, 250, 150), vec(250, 250, 250))
+        PrintArray = array(
+            "[Ammo SetUp V4] ",
+            " AmmoBox does not match the gun's caliber or type",
+            " Ammo linked to gun ",
+            "Gun not found",
+            "Ammo not found",
+            "Ammo type "
+        )
+        
+        Own = owner()
+        
+    function array findAmmo() {
+        findIncludePlayerProps(Own)
+        findByClass("acf_ammo")
+        
+        FindAmmoAry = findToArray()
+        
+        return FindAmmoAry
+    }
+    
+    function void ammoInformation() {
+        local Links = Gun:acfLinks()
+        
+        if (changed(Links:count())) {
+            for (I = 1, Links:count()) {
+                Table[Links[I, entity]:acfAmmoType(), number] = Table[Links[I, entity]:acfAmmoType(), number] + 1 # Thx Ckpop!!
+                
+                if (changed(Table:count())) {
+                    EntInd:pushEntity(Links[I, entity])
+                }
+            }
+        }
+    }
+    
+    function void ammoLink() {
+        for (I = 1, findAmmo():count()) {
+            Gun:acfUnlinkFrom(FindAmmoAry[I, entity], 0)
+            
+            local Links = Gun:acfLinks()
+            
+            if (FindAmmoAry[I, entity]:acfCaliber() == Gun:acfCaliber()) {
+                Gun:acfLinkTo(FindAmmoAry[I, entity], 0)
+            }
+            
+            if (changed(Links:count()) & Links:count()) {
+                Linked++
+            }
+        }
+        
+        NoLink = FindAmmoAry:count() - Gun:acfLinks():count()
+    }
+    
+    function void ammoSelect() {
+        Change = Own:keyPressed(ChangeAmmo)
+        
+        if (changed(Change) & Change) {
+            AmmoIndex += AmmoIndex < EntInd:count() ? 1 : -EntInd:count() + 1
+        }
+        
+        if (changed(Gun:acfAmmoCount())) {
+            AmmoText = EntInd[AmmoIndex, entity]:acfAmmoType() + " (" + Gun:acfAmmoType() + ") " + Gun:acfAmmoCount()
+        }
+        
+        if ((changed(Change)) | changed(Gun:acfAmmoCount())) {
+            for (I = 1, Gun:acfLinks():count()) {
+                Gun:acfLinks()[I, entity]:acfActive(EntInd[AmmoIndex, entity]:acfAmmoType() == Gun:acfLinks()[I, entity]:acfAmmoType() ? 1 : 0)
+            }
+        }
+    }
+    
+    function void errorSound() {
+        Own:soundPlay(1, 1, "buttons/button10.wav")
+    }
+    
+    function void printDebug() {
+        if (changed(FindAmmoAry:count())) {
+            Ammo = findAmmo()
+            local Links = Gun:acfLinks()
+            
+            for (I = 1, Links:count()) {
+                AllRoudes += Links[I, entity]:acfRounds()
+                
+                CountTable[Links[I, entity]:acfAmmoType(), number] = CountTable[Links[I, entity]:acfAmmoType(), number] + Links[I, entity]:acfRounds()
+            }
+            
+            if (NoLink) {
+                errorSound()
+                
+                Chair:printColorDriver(
+                    ColorArray[3, vector], PrintArray[1, string],
+                    ColorArray[1, vector], NoLink
+                    + PrintArray[2, string]
+                )
+            }
+            
+            if (Linked) {
+                Chair:printColorDriver(
+                    ColorArray[3, vector], PrintArray[1, string],
+                    ColorArray[2, vector], Links:count()
+                    + PrintArray[3, string]
+                    + "(" + AllRoudes + " Munitions)"
+                )
+            }
+            
+            for (I = 1, CountTable:count()) {
+                Count:pushNumber(CountTable[EntInd[I, entity]:acfAmmoType(), number])
+                
+                Chair:printColorDriver(
+                    ColorArray[3, vector], PrintArray[1, string]
+                    + PrintArray[6, string]
+                    + I
+                    + ": ", ColorArray[2, vector], EntInd[I, entity]:acfAmmoType()
+                    + " (" + Count[I, number]
+                    + " Munitions)"
+                )
+            }
+        } elseif (PrintDebug) {
+            if (!Gun) {
+                errorSound()
+                
+                Chair:printColorDriver(
+                    ColorArray[3, vector], PrintArray[1, string],
+                    ColorArray[1, vector], PrintArray[4, string]
+                )
+            }
+            
+            if (!findAmmo():count() & !Linked & Gun) {
+                errorSound()
+                
+                Chair:printColorDriver(
+                    ColorArray[3, vector], PrintArray[1, string],
+                    ColorArray[1, vector], PrintArray[5, string]
+                )
+            }
+        }
+    }
+}
+
+    Active = Pod["Active", number]
+    
+if (changed(Active) & Active) {
+    Chair = Pod["Entity", entity]
+    Driver = Chair:driver()
+    
+    AmmoIndex = 1
+    
+    ammoInformation()
+    ammoLink()
+    printDebug()
+}
+
+if (Active) {
+    ammoSelect()
+} else {
+    NoLink = 0
+    Linked = 0
+}
+
+if (changed(FindAmmoAry:count()) & changed(!Active)) {
+    ammoLink()
+}
+
+    CpuOps = array(cpuUsage() * 1000000, ops())
+    
+# Made By RuBid Ammo SetUp V4 V2019.10.11
