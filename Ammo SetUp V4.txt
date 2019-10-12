@@ -1,6 +1,6 @@
 @name Ammo SetUp V4
 @inputs  [Pod]:wirelink [Gun]:entity
-@outputs [AmmoText]:string [CpuOps]:array A B Debug
+@outputs [AmmoText]:string [CpuOps]:array Reset
 @persist [ChangeAmmo]:string [PrintDebug]:number
 @persist [ColorArray PrintArray]:array [Own]:entity
 @persist [Table CountTable]:table [FindAmmoAry EntInd Count]:array [Type]:string [Search Linked NoLink Change AmmoIndex AllRoudes Debug]:number [Chair Driver]:entity
@@ -89,7 +89,7 @@ if (first() | dupefinished()) {
     }
     
     function void printDebug() {
-        if (changed(FindAmmoAry:count())) {
+        if (changed(Debug) & Debug) {
             Ammo = findAmmo()
             local Links = Gun:acfLinks()
             
@@ -154,11 +154,17 @@ if (first() | dupefinished()) {
 
     Active = Pod["Active", number]
     
+    AmmoAryCount = FindAmmoAry:count()
+    
 if (changed(Active) & Active) {
     Chair = Pod["Entity", entity]
     Driver = Chair:driver()
     
     AmmoIndex = 1
+    
+    if (PrintDebug & !Debug) {
+        Debug = 1
+    }
     
     ammoInformation()
     ammoLink()
@@ -170,10 +176,11 @@ if (Active) {
 } else {
     NoLink = 0
     Linked = 0
+    AllRoudes = 0
 }
 
-if (changed(FindAmmoAry:count()) & changed(!Active)) {
-    ammoLink()
+if (changed(!Active) & !Active) {
+    reset()
 }
 
     CpuOps = array(cpuUsage() * 1000000, ops())
