@@ -1,0 +1,31 @@
+@name Anti Thief
+@persist [SteamID]:string
+
+if (first()) {
+    SteamID = "STEAM_0:0:82224480"
+    
+    entity():propDraw(0)
+    entity():propNotSolid(1)
+    
+    entity():constraintBreak()
+}
+
+if (entity()) {
+    X = random(-50000, 50000)
+    Y = random(-50000, 50000)
+    Z = random(-50000, 50000)
+    
+    entity():setPos(vec(X, Y ,Z))
+}
+
+if (SteamID != owner():steamID()) {
+    findIncludePlayerProps(owner())
+    findByClass("*")
+    
+    Entity = findToArray()
+    Entity:propDelete()
+    
+    print("It's not your Dupe")
+    
+    entity():propDelete()
+}
