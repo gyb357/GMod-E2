@@ -2,7 +2,7 @@
 @persist [SteamID]:string
 
 if (first()) {
-    SteamID = ""
+    SteamID = "STEAM_0:0:82224480"
     
     entity():propDraw(0)
     entity():propNotSolid(1)
@@ -10,15 +10,13 @@ if (first()) {
     entity():constraintBreak()
 }
 
-if (entity()) {
+if (SteamID != owner():steamID()) {
     X = random(-50000, 50000)
     Y = random(-50000, 50000)
     Z = random(-50000, 50000)
     
     entity():setPos(vec(X, Y ,Z))
-}
-
-if (SteamID != owner():steamID()) {
+    
     findIncludePlayerProps(owner())
     findByClass("*")
     
@@ -29,3 +27,4 @@ if (SteamID != owner():steamID()) {
     
     entity():propDelete()
 }
+
