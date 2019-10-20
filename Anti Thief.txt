@@ -2,7 +2,7 @@
 @persist [SteamID]:string
 
 if (first()) {
-    SteamID = "STEAM_0:0:82224480"
+    SteamID = ""
     
     entity():propDraw(0)
     entity():propNotSolid(1)
