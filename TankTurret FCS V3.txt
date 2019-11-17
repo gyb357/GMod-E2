@@ -1,0 +1,292 @@
+@name TankTurret FCS V3
+@inputs  [Pod Cam]:wirelink [Gun Base]:entity [XZoom ChangeCamPos]:number
+@outputs [Target]:entity [ClassText]:string [Lock Latch FOV]:number [CpuOps]:array
+@persist [Elevation Depression Yaw RotateSpeed CamOffset CamDist ZoomCount Fall Predict LockOn SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
+@persist [FindExcOwnEnt ClassMax Hint Magnific Speed MuzzleVel Range Degree ToMeter ToReal FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
+@persist [Index Active CamMode Zoom ToggleZoom Hold]:number [Class]:string [Chair Driver Entity CenterEnt]:entity [Ranger]:ranger [Pos Delta_Pos VoT CamPosition]:vector
+interval(50)
+
+if (first() | dupefinished()) {
+    # ----- User Interfae ----- #
+    # Angle Setting
+    Elevation = 20
+    Depression = 10
+    Yaw = 180
+    RotateSpeed = 10
+    
+    # Cam Setting
+    CamOffset = 150
+    CamDist = 400
+    
+    # Zoom Setting
+    ZoomCount = 1
+    
+    # Trajectory Setting
+    Fall = 1
+    Predict = 1
+    LockOn = 1
+    
+    SetAng = 0
+    
+    # Key Setting
+    GunHoldKey = "h"
+    ClassKey = "t"
+    LockOnKey = "r"
+    
+    # Sound Setting
+    RotateSound = "acf_extra/tankfx/turretelectric.wav"
+    LockOnSound = "common/wpn_select.wav"
+    LockOffSound = "common/wpn_denyselect.wav"
+    
+    # ----- Don't Touch These ----- #
+        FindExcOwnEnt = 0
+        ClassMax = 5
+        Hint = 1
+        
+        Magnific = 80 / ZoomCount
+        Speed = SetAng ? RotateSpeed * 0.4 : RotateSpeed
+        
+        MuzzleVel = 1000
+        
+            Range = 50000
+            Degree = 10
+            
+            ToMeter = 39.37
+            ToReal = 3 / 10
+            FromUnit = fromUnit("m", 1)
+            Gravity = gravity()
+            
+            Inertia = shiftL(ang(Gun:inertia()))
+            
+            Own = owner()
+            Null = array(vec(), ang())
+            ClassAry = array("null", "player", "prop_physics", "acf_ammo", "baseentity")
+            
+            rangerFilter(Gun)
+            rangerFilter(Base:getConstraints())
+            rangerPersist(1)
+            
+    function void selectClass(Ary:array) {
+        Index += Index > ClassMax - 1 ? -ClassMax + 1 : 1
+        
+        if (changed(Index) & Index) {
+            findClearWhiteList()
+            
+            findIncludeClass(Class)
+            
+            Class = Index == Ary:count() ? Ary[3, string] : Ary[Index, string]
+            ClassText = Ary[Index, string]
+            
+            if (Hint) {
+                Driver:hintDriver(ClassText, 3)
+            }
+        }
+    }
+        
+    function entity findEntity(CenterPos:vector, CenterDir:vector) {
+        if (FindExcOwnEnt) {
+            findExcludePlayer(Own)
+            findExcludePlayerProps(Own)
+        }
+        
+        findInCone(CenterPos, CenterDir, Range, Degree)
+        findSortByDistance(CenterPos)
+        
+        EntAry = findToArray()
+        Entity = EntAry[1, entity]
+        
+        return Entity
+    }
+    
+    function entity findBase(Ent:entity) {
+        Find = 1
+        
+        while(Find) {
+            if(Ent:parent()) {
+                Ent = Ent:parent()
+                
+                if (!Ent:parent() & Ent:isValidPhysics()) {
+                    CenterEnt = Ent
+                    Find = 0
+                }
+                elseif (!CenterEnt:isValidPhysics()) {
+                    Find = 1
+                }
+            }
+            else {
+                Find = 0
+            }
+        }
+        
+        return CenterEnt
+    }
+    
+    function vector trajectory() {
+        Target = Lock ? (Index == 5 ? findBase(Target) : Entity) : (Predict ? Ranger:entity() : Target)
+        Pos = Lock ? (Target:isPlayer() ? Target:pos() + vec(0, 0, 30) : Target:massCenter()) : Ranger:pos()
+        
+        Mv0 = Gun:acfMuzzleVel() ? Gun:acfMuzzleVel() * ToMeter : MuzzleVel * ToMeter
+        
+        if (Fall) {
+            Dx = sqrt((Gun:massCenter():x() - Pos:x())^2 + (Gun:massCenter():y() - Pos:y())^2)
+            Dy = Gun:massCenter():z() - Pos:z()
+            
+            Tangent = (-(Mv0^2)+ sqrt(Mv0^4 - Gravity * (Gravity * Dx^2 + 2 * Dy * Mv0^2))) / (Gravity * Dx)
+            
+            Theta = atan(Tangent)
+            
+            Drop = vec(0, 0, (Gun:massCenter() + vec(Pos:distance(Gun:massCenter()), 0, 0):rotate(ang(Theta, 0, 0))):z()) - vec(0, 0, Pos:z())
+        }
+        
+        if (Predict) {
+            if (Target) {
+                if (Target:parent() & !Target:vel()) {
+                    VoT = findBase(Target):vel()
+                    
+                    if (!VoT) {
+                        Delta_Pos = $Pos
+                        VoT = Delta_Pos * 1.25 * FromUnit
+                    }
+                }
+                else {
+                    VoT = Target:vel()
+                }
+            }
+            else {
+                if (VoT) {
+                    VoT = Null[1, vector]
+                }
+            }
+            
+            if (Fall) {
+                ToF = Dx / (Mv0 * cos(Theta))
+            }
+            else {
+                Dist = toUnit("m/s", Gun:attachmentPos("muzzle"):distance(Pos))
+                
+                ToF = Dist / ((Mv0 * ToReal) / ToMeter)
+            }
+            
+            GunVel = Gun:vel()
+            Accel = $VoT
+            
+            Prd = ((VoT - GunVel - $GunVel) * ToF) - (0.5 * Accel * ToF^2)
+        }
+        
+        if (LockOn) {
+            if (Cam) {
+                CamPos = Cam["CamPos", vector]
+                CmaDir = Cam["CamDir", vector]
+            }
+            
+            ClassKeyInpt = Driver:keyPressed(ClassKey)
+            LockOnKeyInpt = Driver:keyPressed(LockOnKey)
+            
+            if (changed(ClassKeyInpt) & ClassKeyInpt) {
+                selectClass(ClassAry)
+            }
+            
+            if(LockOn & Target & changed(LockOnKeyInpt) & LockOnKeyInpt & Index > 1) {
+                findEntity(CamPos, CmaDir)
+                
+                Lock++
+            }
+            
+            if(Lock > 1 | changed(Class) & Class | Lock & !Target) {
+                Lock = 0
+            }
+        }
+        
+        return Pos + Drop + Prd
+    }
+    
+    function void camControl() {
+        if (changed(Active) | changed(ChangeCamPos) & ChangeCamPos) {
+            CamMode = !CamMode
+            
+            CamDistance = CamMode ? 0 : CamDist
+            CamPosition = Base:massCenter() + vec(0, 0, CamOffset)
+            
+            Cam["Distance", number] = CamDistance
+            Cam["Position", vector] = CamPosition
+            Cam["parent", entity] = Base
+        }
+        
+        if (changed(XZoom) & XZoom) {
+            Zoom += Zoom > ZoomCount - 1 ? -ZoomCount : 1
+            
+            FOV = 90 - Zoom * Magnific
+            
+            Cam["FOV", number] = FOV
+        }
+    }
+    
+    function void turretMovement() {
+        HoldKey = Driver:keyPressed(GunHoldKey)
+        
+        if (changed(HoldKey) & HoldKey) {
+            Hold = !Hold
+        }
+        
+        if (!Hold) {
+            EyeAng = Chair:toLocal(Driver:eyeAngles())
+            Ranger = rangerOffset(Range, CamPosition, EyeAng:forward())
+            
+            GunAng = (trajectory() - Gun:massCenter()):toAngle()
+            
+            Force = Gun:toWorld(clamp(Gun:toLocal(GunAng), ang(-Speed), ang(Speed)))
+            Angle = clamp(Base:toLocal(Force),ang(-Elevation, -Yaw, -1), ang(Depression, Yaw, 1))
+            LocalToGun = Gun:toLocal(Base:toWorld(Angle))
+            
+            if (SetAng) {
+                Gun:setAng(LocalToGun + Gun:forward():toAngle() * ang(1, 1, 0))
+            }
+            else {
+                Gun:applyAngForce((LocalToGun * 250 - Gun:angVel() * 47) * Inertia)
+            }
+        }
+    }
+    
+    function void sound() {
+        LocalVelocity = Base:toLocal(Gun:angles()):yaw()
+        
+        soundPitch(1, (abs($LocalVelocity) > 0.2) * 65)
+        
+        if (LockOn) {
+            if(changed(Lock == 1) & Lock == 1) {
+                Driver:soundPlay(2, 1, LockOnSound)
+            }
+            
+            if(changed(Lock == 0) & Lock == 0 & Target) {
+                Driver:soundPlay(3, 1, LockOffSound)
+            }
+        }
+    }
+    
+    holoCreate(1)
+}
+holoPos(1, Pos)
+    Active = Pod["Active", number]
+    
+if (changed(Active)) {
+    Chair = Pod["Entity", entity]
+    Driver = Chair:driver()
+    
+    FOV = 90
+    Zoom = 0
+    Index = 1
+    Lock = 0
+    Hold = 1
+}
+
+if (Active) {
+    camControl()
+    turretMovement()
+    sound()
+}
+
+    Latch = Hold ? 1 : 0
+    
+    CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
+
+# Made By RuBid TankTurret V3 V2019.11.17
