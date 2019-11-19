@@ -255,7 +255,7 @@ if (first() | dupefinished()) {
     function void sound() {
         LocalVelocity = Base:toLocal(Gun:angles()):yaw()
         
-        soundPitch(1, clamp((abs($LocalVelocity)) * 20, 0, 100))
+        soundPitch(1, clamp((abs($LocalVelocity)) * 50, 0, 100))
         
         if (LockOn) {
             if(changed(Lock == 1) & Lock == 1) {
