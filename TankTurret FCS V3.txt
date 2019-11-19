@@ -322,4 +322,4 @@ else {
     
     CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
 
-# Made By RuBid TankTurret V3 V2019.11.19
+# Made By RuBid TankTurret V3 V2019.11.20
