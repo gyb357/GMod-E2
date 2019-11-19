@@ -255,14 +255,16 @@ if (first() | dupefinished()) {
     function void sound() {
         LocalVelocity = Base:toLocal(Gun:angles()):yaw()
         
-        soundPitch(1, (abs($LocalVelocity)) * 20)
+        soundPitch(1, clamp((abs($LocalVelocity)) * 20, 0, 100))
         
-        if(changed(Lock == 1) & Lock == 1) {
-            Driver:soundPlay(2, 1, LockOnSound)
-        }
-        
-        if(changed(Lock == 0) & Lock == 0 & Target) {
-            Driver:soundPlay(3, 1, LockOffSound)
+        if (LockOn) {
+            if(changed(Lock == 1) & Lock == 1) {
+                Driver:soundPlay(2, 1, LockOnSound)
+            }
+            
+            if(changed(Lock == 0) & Lock == 0 & Target) {
+                Driver:soundPlay(3, 1, LockOffSound)
+            }
         }
     }
     
@@ -304,10 +306,10 @@ if (Active) {
     if (!Hold) {
         if (LockOn) {
             lockOn()
-            
-            sound()
         }
         turretMovement()
+        
+        sound()
     }
     else {
         soundPitch(1, 0)
