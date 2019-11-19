@@ -289,4 +289,4 @@ if (Active) {
     
     CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
 
-# Made By RuBid TankTurret V3 V2019.11.17
+# Made By RuBid TankTurret V3 V2019.11.1
