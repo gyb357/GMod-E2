@@ -1,8 +1,8 @@
 @name TankTurret FCS V3
 @inputs  [Pod Cam]:wirelink [Gun Base]:entity [XZoom ChangeCamPos]:number
 @outputs [Target]:entity [ClassText]:string [Lock FOV Latch]:number [CpuOps]:array
-@persist [Elevation Depression Yaw RotateSpeed CamOffset CamDist ZoomCount Fall Predict LockOn SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
-@persist [FindExcOwnEnt ClassMax Hint Magnific Speed MuzzleVel Range Degree ToMeter ToReal DeltaConst FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
+@persist [Elevation Depression Yaw RotateSpeed CamOffset CamDist ZoomCount Fall Predict LockOn Hint SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
+@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel Range Degree ToMeter ToReal DeltaConst FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
 @persist [Index Active CamMode Zoom Hold ToF LocalVelocity]:number [Class]:string [Chair Driver Entity CenterEnt]:entity [Ranger]:ranger [Pos Delta_Pos VoT GunVel Prediction CamPosition]:vector
 interval(40)
 
@@ -28,6 +28,8 @@ if (first() | dupefinished()) {
     
     SetAng = 0
     
+    Hint = 0
+    
     # Key Setting
     GunHoldKey = "h"
     ClassKey = "t"
@@ -41,7 +43,6 @@ if (first() | dupefinished()) {
     # ----- Datail Setting ----- #
         FindExcOwnEnt = 0
         ClassMax = 5
-        Hint = 1
         
         Magnific = 80 / ZoomCount
         Speed = SetAng ? RotateSpeed * 0.4 : RotateSpeed
@@ -80,7 +81,7 @@ if (first() | dupefinished()) {
             findIncludeClass(Class)
             
             if (Hint) {
-                Driver:hintDriver(ClassText, 3)
+                Chair:hintDriver(ClassText, 3)
             }
         }
     }
@@ -111,7 +112,7 @@ if (first() | dupefinished()) {
                     CenterEnt = Ent
                     Find = 0
                 }
-                elseif (!CenterEnt:isValidPhysics()) {
+                elseif (Ent:parent() & !CenterEnt:isValidPhysics()) {
                     Find = 1
                 }
             }
@@ -228,7 +229,6 @@ if (first() | dupefinished()) {
         CamPosition = Base:pos() + vec(0, 0, CamOffset)
         
         Cam["Position", vector] = CamPosition
-        
         Cam["FOV", number] = FOV
     }
     
@@ -243,6 +243,8 @@ if (first() | dupefinished()) {
         LocalToGun = Gun:toLocal(Base:toWorld(Angle))
         
         if (SetAng) {
+            Gun:propFreeze(1)
+            
             Gun:setAng(LocalToGun + Gun:forward():toAngle() * ang(1, 1, 0))
         }
         else {
@@ -269,6 +271,7 @@ if (first() | dupefinished()) {
         
     if (SetAng) {
         Gun:constraintBreak()
+        
         Gun:propFreeze(1)
     }
 }
@@ -286,7 +289,7 @@ if (changed(Active) & Active) {
     Hold = 1
     Latch = 1
     
-    Class = ClassAry[1, string]
+    Class = ClassText = ClassAry[1, string]
 }
 
 if (Active) {
@@ -318,7 +321,7 @@ else {
     soundPitch(1, 0)
 }
 
-    Latch = Hold ? 1 : 0
+    Latch = Hold & !SetAng ? 1 : 0
     
     CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
 
