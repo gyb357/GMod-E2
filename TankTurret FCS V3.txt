@@ -2,10 +2,11 @@
 @inputs  [Pod Cam]:wirelink [Gun Base]:entity [XZoom ChangeCamPos]:number
 @outputs [Target]:entity [ClassText]:string [Lock FOV Latch]:number [CpuOps]:array
 @persist [Elevation Depression RotateSpeed Yaw CamOffset CamDist ZoomCount Fall Predict LockOn Hint SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
-@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel RotateYaw Range Degree ToMeter ToReal DeltaConst FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
+@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel RotateYaw Range Degree ToMeter ToReal DeltaConst FromUnit Gravity FrAera]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
 @persist [Index Active CamMode Zoom Hold ToF LocalVelocity]:number [Class]:string [Chair Driver Entity CenterEnt]:entity [Ranger]:ranger [Pos Delta_Pos VoT GunVel Prediction CamPosition]:vector
-interval(40)
 
+    interval(40)
+    
 if (first() | dupefinished()) {
     # ----- User Interfae ----- #
     # Angle Setting
@@ -60,6 +61,8 @@ if (first() | dupefinished()) {
             DeltaConst = 1.25
             FromUnit = fromUnit("m", 1) # 52.4934382021
             Gravity = gravity() # 600
+            
+            FrAera = pi() * (Gun:acfCaliber() / 20)^2
             
             Inertia = shiftL(ang(Gun:inertia()))
             
@@ -132,57 +135,66 @@ if (first() | dupefinished()) {
         
         Mv0 = Gun:acfMuzzleVel() ? Gun:acfMuzzleVel() * ToMeter : MuzzleVel * ToMeter
         
-        if (Fall) {
-            Dx = sqrt((Gun:massCenter():x() - Pos:x())^2 + (Gun:massCenter():y() - Pos:y())^2)
-            Dy = Gun:massCenter():z() - Pos:z()
+        if (Mv0) {
+            if (Fall) {
+                Dx = sqrt((Gun:massCenter():x() - Pos:x())^2 + (Gun:massCenter():y() - Pos:y())^2)
+                Dy = Gun:massCenter():z() - Pos:z()
+                
+                Tangent = (-(Mv0^2)+ sqrt(Mv0^4 - Gravity^2 * Dx^2 + 2 * Dy * Gravity * Mv0^2)) / (Gravity * Dx)
+                
+                Theta = atan(Tangent)
+                
+                Drop = vec(0, 0, (Gun:massCenter() + vec(Pos:distance(Gun:massCenter()), 0, 0):rotate(ang(Theta, 0, 0))):z()) - vec(0, 0, Pos:z())
+            }
             
-            Tangent = (-(Mv0^2)+ sqrt(Mv0^4 - Gravity^2 * Dx^2 + 2 * Dy * Gravity * Mv0^2)) / (Gravity * Dx)
+            #[
+            if (Fall) {
+                Dist = toUnit("m", Gun:attachmentPos("muzzle"):distance(Pos))
+                ToF = Dist / ((Mv0 / ToMeter) * ToReal)
+                Drop = vec(0, 0, (0.5 * Gravity * ToF^2))
+            }
+            ]#
             
-            Theta = atan(Tangent)
+            # DragCoef = FrAera / 10000 / Gun:acfProjectileMass()
             
-            Drop = Gun:acfMuzzleVel() | MuzzleVel ? vec(0, 0, (Gun:massCenter() + vec(Pos:distance(Gun:massCenter()), 0, 0):rotate(ang(Theta, 0, 0))):z()) - vec(0, 0, Pos:z()) : Null[1, vector]
-        }
-        
-        #[
-        if (Fall) {
-            Dist = toUnit("m", Gun:attachmentPos("muzzle"):distance(Pos))
-            ToF = Dist / ((Mv0 / ToMeter) * ToReal)
-            Drop = vec(0, 0, (0.5 * Gravity * ToF^2))
-        }
-        ]#
-        
-        if (Predict) {
-            if (Target) {
-                if (Target:parent() & !Target:vel()) {
-                    VoT = findBase(Target):vel()
-                    
-                    if (!VoT) {
-                        Delta_Pos = $Pos
-                        VoT = Delta_Pos * DeltaConst * FromUnit
+            if (Predict) {
+                if (Target) {
+                    if (Target:parent() & !Target:vel()) {
+                        VoT = findBase(Target):vel()
+                        
+                        if (!VoT) {
+                            Delta_Pos = $Pos
+                            VoT = Delta_Pos * DeltaConst * FromUnit
+                        }
+                    }
+                    else {
+                        VoT = Target:vel()
                     }
                 }
                 else {
-                    VoT = Target:vel()
+                    VoT = Null[1, vector]
                 }
-            }
-            else {
-                VoT = Null[1, vector]
-            }
-            
-            if (Fall) {
-                ToF = Dx / (Mv0 * cos(Theta))
-            }
-            else {
-                Dist = toUnit("m", Gun:attachmentPos("muzzle"):distance(Pos))
                 
-                ToF = Dist / ((Mv0 / ToMeter) * ToReal)
+                if (Fall) {
+                    ToF = Dx / (Mv0 * cos(Theta))
+                }
+                else {
+                    Dist = toUnit("m", Gun:attachmentPos("muzzle"):distance(Pos))
+                    
+                    ToF = Dist / ((Mv0 / ToMeter) * ToReal)
+                }
+                
+                if (Gun:vel()) {
+                    GunVel = Gun:vel()
+                }
+                
+                Prediction = (((VoT / ToReal) - GunVel - $GunVel) * ToF) - (0.5 * ($VoT / ToReal) * ToF^2)
             }
-            
-            if (Gun:vel()) {
-                GunVel = Gun:vel()
+        }
+        else {
+            if (Drop | Prediction) {
+                Drop = Prediction = Null[1, vector]
             }
-            
-            Prediction = (((VoT / ToReal) - GunVel - $GunVel) * ToF) - (0.5 * ($VoT / ToReal) * ToF^2)
         }
         
         return ((Pos + Drop + Prediction) - Gun:massCenter()):toAngle()
