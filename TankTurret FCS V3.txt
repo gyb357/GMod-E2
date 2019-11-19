@@ -1,8 +1,8 @@
 @name TankTurret FCS V3
 @inputs  [Pod Cam]:wirelink [Gun Base]:entity [XZoom ChangeCamPos]:number
 @outputs [Target]:entity [ClassText]:string [Lock FOV Latch]:number [CpuOps]:array
-@persist [Elevation Depression Yaw RotateSpeed CamOffset CamDist ZoomCount Fall Predict LockOn Hint SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
-@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel Range Degree ToMeter ToReal DeltaConst FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
+@persist [Elevation Depression RotateSpeed Yaw CamOffset CamDist ZoomCount Fall Predict LockOn Hint SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
+@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel RotateYaw Range Degree ToMeter ToReal DeltaConst FromUnit Gravity]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
 @persist [Index Active CamMode Zoom Hold ToF LocalVelocity]:number [Class]:string [Chair Driver Entity CenterEnt]:entity [Ranger]:ranger [Pos Delta_Pos VoT GunVel Prediction CamPosition]:vector
 interval(40)
 
@@ -11,8 +11,8 @@ if (first() | dupefinished()) {
     # Angle Setting
     Elevation = 20
     Depression = 10
-    Yaw = 180
     RotateSpeed = 10
+    Yaw = 360
     
     # Cam Setting
     CamOffset = 150
@@ -50,6 +50,8 @@ if (first() | dupefinished()) {
         MuzzleVel = 1000
         
     # ----- Don't Touch These ----- #
+            RotateYaw = (Yaw / 2)
+            
             Range = 50000
             Degree = 10
             
@@ -138,7 +140,7 @@ if (first() | dupefinished()) {
             
             Theta = atan(Tangent)
             
-            Drop = vec(0, 0, (Gun:massCenter() + vec(Pos:distance(Gun:massCenter()), 0, 0):rotate(ang(Theta, 0, 0))):z()) - vec(0, 0, Pos:z())
+            Drop = Gun:acfMuzzleVel() | MuzzleVel ? vec(0, 0, (Gun:massCenter() + vec(Pos:distance(Gun:massCenter()), 0, 0):rotate(ang(Theta, 0, 0))):z()) - vec(0, 0, Pos:z()) : Null[1, vector]
         }
         
         #[
@@ -239,7 +241,7 @@ if (first() | dupefinished()) {
         GunAng = trajectory()
         
         Force = Gun:toWorld(clamp(Gun:toLocal(GunAng), ang(-Speed), ang(Speed)))
-        Angle = clamp(Base:toLocal(Force),ang(-Elevation, -Yaw, -1), ang(Depression, Yaw, 1))
+        Angle = clamp(Base:toLocal(Force),ang(-Elevation, -RotateYaw, -1), ang(Depression, RotateYaw, 1))
         LocalToGun = Gun:toLocal(Base:toWorld(Angle))
         
         if (SetAng) {
