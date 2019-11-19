@@ -16,7 +16,11 @@ if (first() | dupefinished()) {
     Yaw = 360
     
     Follow = 4
-    # 1 = Notting, 2 = Rotate at the same angle as the base, 3 = Rotate to last gun angle, 4 = Rotate to last aim position
+    # 0 = No Control
+    # 1 = Stop spin
+    # 2 = Rotate at the same angle as the base
+    # 3 = Rotate to last gun angle
+    # 4 = Rotate to last aim position
     
     LatchGun = 1
     
@@ -279,6 +283,8 @@ if (first() | dupefinished()) {
     Gun:soundPlay(1, 0, RotateSound)
         soundPitch(1, 0)
         
+    Follow = clamp(Follow, 0, 4)
+    
     if (SetAng) {
         Gun:constraintBreak()
         
@@ -332,7 +338,7 @@ else {
     
     switch (Follow) {
         case 1, HoldAng = Base:toWorld(Base:toLocal(Gun:angles())) break
-        case 2, HoldAng = !LatchGun ? ang(-Base:angles():pitch(), Base:angles():yaw(), 0) : Null[2, angle] break
+        case 2, HoldAng = ang(-Base:angles():pitch(), Base:angles():yaw(), 0) break
         case 3, HoldAng = GunAng break
         case 4, HoldAng = trajectory() break
         
