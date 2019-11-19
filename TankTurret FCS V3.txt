@@ -114,7 +114,7 @@ if (first() | dupefinished()) {
                     CenterEnt = Ent
                     Find = 0
                 }
-                elseif (Ent:parent() & !CenterEnt:isValidPhysics()) {
+                elseif (CenterEnt:parent() & !CenterEnt:isValidPhysics()) {
                     Find = 1
                 }
             }
