@@ -1,19 +1,26 @@
 @name TankTurret FCS V3
 @inputs  [Pod Cam]:wirelink [Gun Base]:entity [XZoom ChangeCamPos]:number
 @outputs [Target]:entity [ClassText]:string [Lock FOV Latch]:number [CpuOps]:array
-@persist [Elevation Depression RotateSpeed Yaw CamOffset CamDist ZoomCount Fall Predict LockOn Hint SetAng]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
-@persist [FindExcOwnEnt ClassMax Magnific Speed MuzzleVel RotateYaw Range Degree ToMeter ToReal DeltaConst FromUnit Gravity FrAera]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
+@persist [Elevation Depression RotateSpeed Yaw Follow LatchGun SetAng CamOffset CamDist ZoomCount Fall Predict LockOn]:number [GunHoldKey ClassKey LockOnKey RotateSound LockOnSound LockOffSound]:string
+@persist [FindExcOwnEnt ClassMax Hint Magnific Speed MuzzleVel RotateYaw Range Degree ToMeter ToReal DeltaConst FromUnit Gravity FrAera]:number [Inertia]:angle [Own]:entity [Null ClassAry]:array
 @persist [Index Active CamMode Zoom Hold ToF LocalVelocity]:number [Class]:string [Chair Driver Entity CenterEnt]:entity [Ranger]:ranger [Pos Delta_Pos VoT GunVel Prediction CamPosition]:vector
 
     interval(40)
     
 if (first() | dupefinished()) {
     # ----- User Interfae ----- #
-    # Angle Setting
+    # TurretMovement Setting
     Elevation = 20
     Depression = 10
     RotateSpeed = 10
     Yaw = 360
+    
+    Follow = 4
+    # 1 = Notting, 2 = Rotate at the same angle as the base, 3 = Rotate to last gun angle, 4 = Rotate to last aim position
+    
+    LatchGun = 1
+    
+    SetAng = 0
     
     # Cam Setting
     CamOffset = 150
@@ -27,23 +34,25 @@ if (first() | dupefinished()) {
     Predict = 1
     LockOn = 1
     
-    SetAng = 0
-    
-    Hint = 0
-    
     # Key Setting
     GunHoldKey = "h"
     ClassKey = "t"
     LockOnKey = "g"
     
     # Sound Setting
+    # Sound Index: 1
     RotateSound = "acf_extra/tankfx/turret5.wav"
+    
+    # Sound Index: 2
     LockOnSound = "common/wpn_select.wav"
+    
+    # Sound Index: 3
     LockOffSound = "common/wpn_denyselect.wav"
     
     # ----- Datail Setting ----- #
         FindExcOwnEnt = 0
         ClassMax = 5
+        Hint = 0
         
         Magnific = 80 / ZoomCount
         Speed = SetAng ? RotateSpeed * 0.4 : RotateSpeed
@@ -130,8 +139,13 @@ if (first() | dupefinished()) {
     }
     
     function angle trajectory() {
-        Target = Lock ? (Index == 5 ? findBase(Target) : Entity) : (Predict ? Ranger:entity() : Target)
-        Pos = Lock ? (Target:isPlayer() ? Target:pos() + vec(0, 0, 32.5) : Target:massCenter()) : Ranger:pos()
+        if (!Hold) {
+            if (Predict) {
+                Target = Lock ? (Index == 5 ? findBase(Target) : Entity) : (Predict ? Ranger:entity() : Target)
+            }
+            
+            Pos = Lock ? (Target:isPlayer() ? Target:pos() + vec(0, 0, 32.5) : Target:massCenter()) : Ranger:pos()
+        }
         
         Mv0 = Gun:acfMuzzleVel() ? Gun:acfMuzzleVel() * ToMeter : MuzzleVel * ToMeter
         
@@ -246,26 +260,6 @@ if (first() | dupefinished()) {
         Cam["FOV", number] = FOV
     }
     
-    function void turretMovement() {
-        EyeAng = Chair:toLocal(Driver:eyeAngles())
-        Ranger = rangerOffset(Range, CamPosition, EyeAng:forward())
-        
-        GunAng = trajectory()
-        
-        Force = Gun:toWorld(clamp(Gun:toLocal(GunAng), ang(-Speed), ang(Speed)))
-        Angle = clamp(Base:toLocal(Force),ang(-Elevation, -RotateYaw, -1), ang(Depression, RotateYaw, 1))
-        LocalToGun = Gun:toLocal(Base:toWorld(Angle))
-        
-        if (SetAng) {
-            Gun:propFreeze(1)
-            
-            Gun:setAng(LocalToGun + Gun:forward():toAngle() * ang(1, 1, 0))
-        }
-        else {
-            Gun:applyAngForce((LocalToGun * 250 - Gun:angVel() * 47) * Inertia)
-        }
-    }
-    
     function void sound() {
         LocalVelocity = Base:toLocal(Gun:angles()):yaw()
         
@@ -303,7 +297,7 @@ if (changed(Active) & Active) {
     Index = 1
     Lock = 0
     Hold = 1
-    Latch = 1
+    Latch = LatchGun & Follow == 2 & !SetAng ? 1 : 0
     
     Class = ClassText = ClassAry[1, string]
 }
@@ -321,23 +315,52 @@ if (Active) {
         if (LockOn) {
             lockOn()
         }
-        turretMovement()
         
         sound()
     }
     else {
         soundPitch(1, 0)
     }
+    
+    EyeAng = Chair:toLocal(Driver:eyeAngles())
+    Ranger = rangerOffset(Range, CamPosition, EyeAng:forward())
+    
+    GunAng = trajectory()
 }
 else {
-    if (SetAng) {
-        Gun:propFreeze(1)
+    soundPitch(1, 0)
+    
+    switch (Follow) {
+        case 1, HoldAng = Base:toWorld(Base:toLocal(Gun:angles())) break
+        case 2, HoldAng = !LatchGun ? ang(-Base:angles():pitch(), Base:angles():yaw(), 0) : Null[2, angle] break
+        case 3, HoldAng = GunAng break
+        case 4, HoldAng = trajectory() break
+        
+        default, break
     }
     
-    soundPitch(1, 0)
+    GunAng = HoldAng
 }
 
-    Latch = Hold & !SetAng ? 1 : 0
+    Force = Gun:toWorld(clamp(Gun:toLocal(GunAng), ang(-Speed), ang(Speed)))
+    Angle = clamp(Base:toLocal(Force),ang(-Elevation, -RotateYaw, -1), ang(Depression, RotateYaw, 1))
+    LocalToGun = Gun:toLocal(Base:toWorld(Angle))
+    
+if (SetAng) {
+    Gun:propFreeze(1)
+    
+    Gun:setAng(LocalToGun + Gun:forward():toAngle() * ang(1, 1, 0))
+}
+else {
+    if (!Follow | Follow == 2 & Hold) {
+        
+    }
+    else {
+        Gun:applyAngForce((LocalToGun * 250 - Gun:angVel() * 47) * Inertia)
+    }
+}
+
+    Latch = LatchGun & Hold & Follow == 2 & !SetAng ? 1 : 0
     
     CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
 
