@@ -1,0 +1,12 @@
+#[
+  G = 600 # 11.43m/s^2
+  ToMeter = 39.37
+  ToReal = (2 / 3)
+  
+  V0 = Gun:acfMuzzleVel()
+
+  Pos = Ranger:pos()
+  Dx = sqrt((Pos:x() - Gun:massCenter():x())^2 + (Pos:y() - Gun:massCetner():y())^2)
+  Dx = Pos:z() - Gun:massCenter():z()
+  
+  Tangent = 
