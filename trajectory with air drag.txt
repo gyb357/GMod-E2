@@ -3,10 +3,20 @@
   ToMeter = 39.37
   ToReal = (2 / 3)
   
-  V0 = Gun:acfMuzzleVel()
+  V0 = Gun:acfMuzzleVel() * ToMeter
 
   Pos = Ranger:pos()
   Dx = sqrt((Pos:x() - Gun:massCenter():x())^2 + (Pos:y() - Gun:massCetner():y())^2)
   Dx = Pos:z() - Gun:massCenter():z()
   
   Tangent = 
+  
+  Theta = atan(Tangent)
+  Pitch = Gun:angles():pitch()
+  
+  DragCoef = Frarea / 10000 / Gun:acfProjectileMass()
+  
+  ToF = Dx / (V0 * cos(Pitch))
+  
+  Drag = vec(0, 0, ((0.5 * G * ((V0 / ToMeter) * ToReal) * ToF^3) / cos(Theta)) + (Dx * DragCoef) * -sin(Theta) * ToF^3)
+  Drop = 
