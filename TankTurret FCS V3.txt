@@ -7,7 +7,7 @@
 @persist [Index Active CamMode Zoom Hold ToF LocalVelocity]:number [Class]:string [Chair Driver Entity CenterEnt BallsocketBase]:entity [Ranger]:ranger
 @persist [Activated Holded PropcoreEnable]:number [GunPos Pos Drop Drag Delta_Pos VoT GunVel Prediction CamPosition LastAimPos]:vector [LastGunAng GunAng HoldAng]:angle
 
-interval(50)
+interval(45)
 
 if (first() | dupefinished()) {
     # ----- User Interfae ----- #
@@ -17,7 +17,7 @@ if (first() | dupefinished()) {
     RotateSpeed = 10
     Yaw = 360
     
-    Follow = 3
+    Follow = 1
     # 0 = No Control
     # 1 = Latch Gun
     # 2 = Stop spin
@@ -280,9 +280,11 @@ if (first() | dupefinished()) {
     #ifndef entity:setPos(vector)
         hint(HintAry[1, string], 3)
     #else
+        PropcoreEnable = 1
+    #endif
+    
+    if (PropcoreEnable) {
         if (SetAng) {
-            PropcoreEnable = 1
-            
             Gun:constraintBreak()
             Gun:propFreeze(1)
         }
@@ -295,7 +297,7 @@ if (first() | dupefinished()) {
         
         Gun:propDrag(0)
         Gun:propInertia(Null[1, vector])
-    #endif
+    }
 }
 
     Active = Pod["Active", number]
@@ -392,9 +394,18 @@ else {
         Gun:applyAngForce((LocalToGun * 250 - Gun:angVel() * 47) * Inertia)
     }
 }
-    
+
     Latch = !SetAng & Follow == 1 & Hold ? 1 : 0
     
+if (PropcoreEnable) {
+    if (!Gun:isWeldedTo() & changed(Latch) & Latch) {
+        weld(Gun, Base)
+    }
+    elseif (Gun:isWeldedTo() & changed(!Latch) & !Latch) {
+        Gun:constraintBreak("weld")
+    }
+}
+
     CpuOps = array(int(cpuUsage() * 1000000), int(ops()))
     
 # Made By RuBid TankTurret V3 V2019.11.30
