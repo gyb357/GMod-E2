@@ -278,8 +278,6 @@ if (first() | dupefinished()) {
     Follow = clamp(Follow, 0, 5)
     
     #ifndef entity:setPos(vector)
-        hint(HintAry[1, string], 3)
-        
         error(HintAry[1, string])
     #else
         PropcoreEnable = 1
