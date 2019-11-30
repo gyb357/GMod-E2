@@ -279,6 +279,8 @@ if (first() | dupefinished()) {
     
     #ifndef entity:setPos(vector)
         hint(HintAry[1, string], 3)
+        
+        error(HintAry[1, string])
     #else
         PropcoreEnable = 1
     #endif
