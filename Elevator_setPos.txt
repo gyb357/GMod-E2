@@ -1,0 +1,89 @@
+@name Elevator
+@inputs  [Base Bottom]:entity [Up Down]:number
+@outputs [F]:number
+@persist [FCount MaxHeigh FirstFloor Speed]:number
+@persist [Interval HideHolo]:number
+@persist [ToSec H F U]:number
+@persist [Heigh Active Upper Downer VecZ]:number [Arr]:array
+
+interval(Interval)
+
+if (first() | dupefinished()) {
+    # ----- Setting ----- #
+    FCount = 5
+    MaxHeigh = 15 # Unit: meter
+    FirstFloor = 1
+    UnderFloor = 0
+    Speed = 1
+    
+    # ----- Detale ----- #
+    Interval = 10
+    HideHolo = 0
+        
+    # ----- Don't Touch ----- $
+        ToSec = 10^3
+        H = (fromUnit("m", MaxHeigh) / FCount)
+        F = FirstFloor
+        
+    function void holoSetup(Count:number, Floor:entity, H:number) {
+        for (I = 1, FCount) {
+            holoCreate(I)
+            
+            Heigh += (0 + H)
+            
+            holoPos(I, Floor:pos() + vec(0, 0, Heigh - H * (UnderFloor + 1)))
+            
+            Arr:pushNumber(abs(holoEntity(I):pos():z()))
+            
+            holoParent(I, Base)
+            
+            holoAlpha(I, !HideHolo * 255)
+            holoShadow(I, !HideHolo * 255)
+        }
+        
+        holoCreate(FCount + 1)
+        
+        holoAlpha(FCount + 1, !HideHolo * 255)
+        holoShadow(FCount + 1, !HideHolo * 255)
+    }
+    
+    holoSetup(FCount, Base, H)
+    
+    timer("load_function", 0.1 * ToSec)
+}
+
+if (clk("load_function")) {
+    stoptimer("load_function")
+    
+    Active = 1
+}
+
+if (Active) {
+    F = clamp(F, 1, FCount)
+    
+    if (changed(Up) & Up) {
+        Upper = 1
+        Downer = 0
+        
+        F += 1
+    }
+    elseif (changed(Down) & Down) {
+        Upper = 0
+        Downer = 1
+        
+        F -= 1
+    }
+    
+    if (Upper & abs(holoEntity(FCount + 1):pos():z()) >= Arr[F, number]) {
+         VecZ += Speed
+    }
+    elseif (Downer & abs(holoEntity(FCount + 1):pos():z()) <= Arr[F, number]) {
+        VecZ -= Speed
+    }
+    
+    holoPos(FCount + 1, holoEntity(FirstFloor):pos() + vec(0, 0, VecZ))
+    
+    if (Bottom) {
+        Bottom:setPos(holoEntity(FCount + 1):pos())
+    }
+}
