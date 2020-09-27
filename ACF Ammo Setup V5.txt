@@ -1,38 +1,43 @@
 @name ACF Ammo Setup V5
 @inputs  [Chair Gun]:entity [Active ChangeAmmo]:number
-@outputs [AmmoText]:string
-@persist [ResetLink printDebug]:number
-@persist [TypeTable RoundTable]:table [AmmoArray AmmoType AmmoCount]:array
-@persist [Link NoLink]:number
+@outputs [AmmoText]:string [CpuOps]:array
+@persist [ResetLink AutoLink PrintDebug]:number
+@persist [TypeTable RoundTable]:table [AmmoTypeArray AmmoCountArray]:array
+@persist [Link NoLink Index ParentMass PhysicsMass Parent NoParent AllRoudes]:number
 @persist [Chair]:entity
 
+interval(50)
+
 if (first() | dupefinished()) {
+  # ----- User Interface ----- #
+  ResetLink  = 1
+  AutoLink   = 1
+  PrintDebug = 1
 
-  ResetLink = 1
-  printDebug = 1
-
-
-  function array entity:ammoType() {
+  function array findAmmo() {
     if (Gun:type() == "acf_gun") {findIncludePlayerProps(Own), findByClass("acf_ammo")}
-
-    AmmoArray = findToArray()
-    for (I = 1, AmmoArray:count()) {
-      local AmmoEnt = AmmoArray[I, entity]
-
-      TypeTable[AmmoEnt:acfAmmoType(), number] = TypeTable[AmmoEnt:acfAmmoType(), number] + 1
-      
-      if (changed(TypeTable:count())) {AmmoType:pushEntity(AmmoEnt)}
-    }
-    return AmmoType
+    return findToArray()
   }
 
-  function void entity:ammoLink(AmmoArray:array) {
+  function array entity:ammoType(Ammo:array) {
+    for (I = 1, Ammo:count()) {
+      local AmmoEnt     = Ammo[I, entity]
+      local AmmoEntType = AmmoEnt:acfAmmoType()
+
+      TypeTable[AmmoEntType, number] = TypeTable[AmmoEntType, number] + 1
+      
+      if (changed(TypeTable:count())) {AmmoTypeArray:pushEntity(AmmoEnt)}
+    }
+    return AmmoTypeArray
+  }
+
+  function void entity:ammoLink(Ammo:array) {
       for (I = 1, Ammo:count()) {
-        local AmmoEnt = AmmoArray[I, entity]
+        local AmmoEnt = Ammo[I, entity]
+
         if (ResetLink) {Gun:acfUnlinkFrom(AmmoEnt, 0)}
 
-        local Caliber = AmmoEnt:acfCaliber()
-        if (Caliber == Gun:acfCaliber()) {
+        if (AmmoEnt:acfCaliber() == Gun:acfCaliber()) {
           Gun:acfLinkTo(AmmoEnt, 0)
           Link++
         }
@@ -42,85 +47,90 @@ if (first() | dupefinished()) {
     }
   }
 
-  function void ammoSelect(AmmoType:array) {
-    local TypeCount = AmmoType:count()
+  function void ammoSelect(Type:array) {
+    TypeCount = Type:count()
+    
     if (changed(ChangeAmmo) & ChangeAmmo) {
       Index += Index < TypeCount ? 1 : -TypeCount + 1
       
-      local AmmoTypeEnt = AmmoType[Index, entity]
-      local GunAmmoType = Gun:acfAmmoType()
-      local GunAmmoLink = Gun:acfLinks()
+      TypeEntType = Type[Index, entity]:acfAmmoType()
+      GunAmmoType = Gun:acfAmmoType()
+      GunAmmoLink = Gun:acfLinks()
 
-      AmmoText = AmmoTypeEnt:acfAmmoType() + " (" + GunAmmoType + ") " + GunAmmoType:count()
+      AmmoText = TypeEntType + " (" + GunAmmoType + ") " + GunAmmoType:count()
 
       for (I = 1, GunAmmoLink:count()) {
-        local GunAmmoLinkEnt =  GunAmmoLink[I, entity]
+        local GunAmmoLinkEnt = GunAmmoLink[I, entity]
 
-        GunAmmoLinkEnt:acfActive(AmmoTypeEnt:acfAmmoType() == GunAmmoLinkEnt:acfAmmoType() ? 1 : 0)
+        GunAmmoLinkEnt:acfActive(TypeEntType == GunAmmoLinkEnt:acfAmmoType() ? 1 : 0)
       }
     }
   }
 
-  function void printDebug(AmmoArray:array) {
-    for (I = 1, AmmoArray:count()) {
-      local AmmoEnt = AmmoArray[I, entity]
-      local AmmoType = AmmoEnt:acfAmmoType()
-      local AmmoMass = AmmoEnt:mass()
+  function void printDebug(Ammo:array) {
+    for (I = 1, Ammo:count()) {
+      local AmmoEnt   = Ammo[I, entity]
+      local AmmoMass  = AmmoEnt:mass()
+      local AmmoType  = AmmoEnt:acfAmmoType()
+      local AmmoRound = AmmoEnt:acfRounds()
 
-      if (AmmoEnt:parent()) {ParentMass += AmmoMass}
-      if (!AmmoEnt:parent()) {PhysicsMass += AmmoMass}
+      if (AmmoEnt:parent())  {ParentMass += AmmoMass, Parent++}
+      if (!AmmoEnt:parent()) {PhysicsMass += AmmoMass, NoParent++}
 
-      AllRoudes += AmmoEnt:acfRounds()
-      RoundTable[AmmoType, number] = RoundTable[AmmoType, number] + AmmoEnt:acfRounds()
+      AllRoudes += AmmoRound
+      RoundTable[AmmoType, number] = RoundTable[AmmoType, number] + AmmoRound
     }
 
-    local Red = vec(250, 0, 0)
+    local Red   = vec(250,  0,   0 )
     local Green = vec(150, 250, 150)
     local White = vec(250, 250, 250)
 
     # Title
     Chair:printColorDriver(White, "[ACF Ammp Setup V5]")
-    # Mass
+
+    # Mass & State
     Chair:printColorDriver(
-      Green, 
-        "Total Mass: " + ParentMass + PhysicsMass + " / "
-      + "ParentMass: " + ParentMass + " / "
-      + "PhysicsMass: " + PhysicsMass + ""
+      Green,
+        "Total Mass: "  + ParentMass  + PhysicsMass + "(" + Ammo:count() + ")" + " / " +
+        "ParentMass: "  + ParentMass  + "(" + Parent + ")" + " / "
+        "PhysicsMass: " + PhysicsMass + "(" + NoParent + ")"
     )
-    # Type & Rounds
+
+    # Roundes & Type
     if (Link) {
       Chair:printColorDriver(
         Green,
-          Link + " Ammo linked to gun"
-               + " (" + AllRoudes + " Munitions")
+          Link + " Ammo linked to gun (" + AllRoudes + " Munitions)"
       )
     }
-    if (NoLink) {Chair:printColorDriver(Red, NoLink + "Ammo does not match the gun's caliber or type")}
+    if (NoLink) {Chair:printColorDriver(Red, NoLink + " Ammo does not match the gun's caliber or type")}
 
     for (I = 1, RoundTable:count()) {
-      local AmmoEnt = AmmoArray[I, entity]
+      local AmmoEnt = Ammo[I, entity]
       local AmmoType = AmmoEnt:acfAmmoType()
 
-      AmmoCount:pushNumber(RoundTable[AmmoType, number])
+      AmmoCountArray:pushNumber(RoundTable[AmmoType, number])
 
       Chair:printColorDriver(
-        White, "AmmoType: ",
-        Green, I
-        + ": "
-        + AmmoType
-        + AmmoEnt:acfAmmoType()
-        + " (" + AmmoCount[I, number] + " Munitions)"
+        White,
+          "AmmoType: ",
+        Green,
+          I + ": " + AmmoType + " (" + AmmoCountArray[I, number] + " Munitions)"
       )
     }
 
     if (!AmmoArray:count()) {Chair:printColorDriver(Red, "Ammo not found")}
-    if (!Gun) {Chair:printColorDriver(Red, "Ammo not found")}
+    if (!Gun) {Chair:printColorDriver(Red, "Gun not found")}
   }
 
-  Gun:ammoType()
-  Gun:ammoLink(AmmoArray)
+  ACF_Ammo     = findAmmo()
+  ACF_AmmoType = Gun:ammoType(ACF_Ammo)
+  if (AutoLink)   {Gun:ammoLink(ACF_Ammo)}
+  if (PrintDebug) {printDebug(ACF_Ammo)}
 }
 
-if (Active) {
-  ammoSelect()
-}
+if (Active) {ammoSelect(ACF_AmmoType)}
+
+  CpuOps = array(cpuUsage() * 10^6, ops())
+
+# Made By RuBid ACF Ammo SetUp V5
