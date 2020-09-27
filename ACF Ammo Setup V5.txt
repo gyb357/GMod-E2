@@ -15,6 +15,7 @@ if (first() | dupefinished()) {
   PrintDebug = 1
 
   function array findAmmo() {
+    local Own = owner()
     if (Gun:type() == "acf_gun") {findIncludePlayerProps(Own), findByClass("acf_ammo")}
     return findToArray()
   }
@@ -57,7 +58,7 @@ if (first() | dupefinished()) {
       GunAmmoType = Gun:acfAmmoType()
       GunAmmoLink = Gun:acfLinks()
 
-      AmmoText = TypeEntType + " (" + GunAmmoType + ") " + GunAmmoType:count()
+      AmmoText = TypeEntType + " (" + GunAmmoType + ") " + Gun:acfAmmoType()
 
       for (I = 1, GunAmmoLink:count()) {
         local GunAmmoLinkEnt = GunAmmoLink[I, entity]
@@ -92,17 +93,12 @@ if (first() | dupefinished()) {
     Chair:printColorDriver(
       Green,
         "Total Mass: "  + ParentMass  + PhysicsMass + "(" + Ammo:count() + ")" + " / " +
-        "ParentMass: "  + ParentMass  + "(" + Parent + ")" + " / "
+        "ParentMass: "  + ParentMass  + "(" + Parent + ")" + " / " +
         "PhysicsMass: " + PhysicsMass + "(" + NoParent + ")"
     )
 
     # Roundes & Type
-    if (Link) {
-      Chair:printColorDriver(
-        Green,
-          Link + " Ammo linked to gun (" + AllRoudes + " Munitions)"
-      )
-    }
+    if (Link) {Chair:printColorDriver(Green, Link + " Ammo linked to gun (" + AllRoudes + " Munitions)")}
     if (NoLink) {Chair:printColorDriver(Red, NoLink + " Ammo does not match the gun's caliber or type")}
 
     for (I = 1, RoundTable:count()) {
@@ -119,8 +115,8 @@ if (first() | dupefinished()) {
       )
     }
 
-    if (!AmmoArray:count()) {Chair:printColorDriver(Red, "Ammo not found")}
-    if (!Gun) {Chair:printColorDriver(Red, "Gun not found")}
+    if (!Ammo:count()) {Chair:printColorDriver(Red, "Ammo not found")}
+    if (!Gun)          {Chair:printColorDriver(Red, "Gun not found")}
   }
 
   ACF_Ammo     = findAmmo()
@@ -133,4 +129,4 @@ if (Active) {ammoSelect(ACF_AmmoType)}
 
   CpuOps = array(cpuUsage() * 10^6, ops())
 
-# Made By RuBid ACF Ammo SetUp V5
+# Made By RuBid ACF Ammo Setup V5
