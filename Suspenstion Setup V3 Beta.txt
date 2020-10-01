@@ -1,0 +1,215 @@
+@name Suspenstion Setup V3 Beta
+@inputs  [Wheels]:array [Chassis]:entity
+@persist [ConstBreak Rope Elastic Ballsocket Nocolide DoConstraint PrintDebug DrawHolo DeleteE2]:number
+@persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string
+@persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
+@persist [ConsBreakCore RopeCore ElasticCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoColideIndex]:number
+@persist [Core Index]:array
+
+if (first() | dupefinished()) {
+
+  # ----- Constraints Setting ----- #
+  ConstBreak = 1
+  Rope       = 1
+  Elastic    = 1
+  Ballsocket = 1
+  Nocolide   = 1
+
+  # ----- Action Setting ----- #
+  DoConstraint = 1
+  PrintDebug   = 1
+  DrawHolo     = 1
+  DeleteE2     = 0
+
+  # ----- Suspenstion Setting ----- #
+    # Position
+    Forward = 30
+    Right   = 10
+    Up      = 10
+
+    # Angle
+    Pitch = 0
+    Yaw   = 0
+    Roll  = 0
+
+    # Elastic
+    Spring   = 50000
+    Damping  = 5000
+    Relative = 1000
+
+    # Draw
+    Width    = 0
+    Material = "cable/cable2"
+
+  # ----- Don't modify below part ----- #
+    ConsArray  = array("rope", "elastic", "ADVballsocket", "nocolide")
+    ConsCount  = ConsArray:count()
+    WheelCount = Wheels:count()
+    NilVec     = vec()
+
+  function void data_CI(CoreNum:number, IndexNum:number) {
+    Core:pushNumber(CoreNum), Index:pushNumber(IndexNum)
+  }
+
+  function void array:consBreak(ConsArray:array) {
+    #ifdef entity:isConstrainedTo(string) & entity:constraintBreak(string)
+    ConsBreakCore = 1
+
+    for (I = 1, WheelCount) {
+      local WhlEnt  = Wheels[I, entity]
+
+      for (J = 1, ConsCount) {
+        local ConsStr = ConsArray[J, string]
+
+        if (DoConstraint & WhlEnt:isConstrainedTo(ConsStr)) {WhlEnt:constraintBreak(ConsStr), ConsBreakIndex++}
+      }
+    }
+    #else
+    ConsBreakCore = 0
+    #endif
+    data_CI(ConsBreakCore, ConsBreakIndex)
+  }
+
+  function vector localPos(Sign:number, Ent:entity) {
+    return Chassis:toLocal(Ent:massCenter()) + vec(Forward, Right*Sign, Up):rotate(Pitch, Yaw, Roll)
+  }
+
+  function void array:setRope() {
+    #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
+    RopeCore = 1
+
+    for (I = 1, WheelCount) {
+      local WhlEnt  = Wheels[I, entity]
+
+      for (J = 1, 2) {
+        local Sign    = J == 1 ? 1 : -1
+        local ToLocal = localPos(Sign, WhlEnt)
+
+        RopeIndex++
+
+        if (DrawHolo) {
+          local WhlPos = WhlEnt:massCenter()
+          local EndPos = ToLocal
+
+          pushNumber
+        }
+
+        if (DoConstraint) {rope(RopeIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, 0, Width, Material, 1)}
+      }
+    }
+    #else
+    RopeCore = 0
+    #endif
+    data_CI(RopeCore, RopeIndex)
+  }
+
+  function void array:setElastic() {
+    #ifdef hydraulic(number, entity, vector, entity, vector, number, number, number, string, number, number)
+    ElasticCore = 1
+
+    for (I = 1, WheelCount) {
+      local WhlEnt  = Wheels[I, entity]
+      local ToLocal = localPos(1, WhlEnt)
+
+      ElasticIndex++
+
+      if (DoConstraint) {hydraulic(ElasticIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, Spring, Damping, Relative, Material, Width, 0)}
+    }
+    #else
+    ElasticCore = 0
+    #endif
+    data_CI(ElasticCore, ElasticIndex)
+  }
+
+  function void array:setBallsocket() {
+    #ifdef ballsocket(entity, vector, entity, vector, vector, number)
+    BallscoketCore = 1
+
+    local Sprocket = WhlEnt[1, entity]
+
+    for (I = 1, WheelCount) {
+      local WhlEnt = Wheels[I, entity]
+
+      if (DoConstraint) {
+        if (Chassis) {
+          ballsocket(WhlEnt, NilVec, Chassis, -vec(180, 0, 0), vec(180, 0, 0), NilVec, 1)
+          BallsocketIndex++
+        }
+        ballsocket(Wheels[1+I, entity], NilVec, Sprocket, -NilVec, NilVec, NilVec, 1)
+        BallsocketIndex++
+      }
+    }
+    #else
+    BallscoketCore = 0
+    #endif
+    data_CI(BallscoketCore, BallsocketIndex)
+  }
+
+  function void array:setNocolide() {
+    #ifdef noColide(entity, entity)
+    NoColideCore = 1
+
+    for (I = 1, WheelCount) {
+      local WhlEnt = Wheels[I, entity]
+      local AftWhl = Wheels[I+1, entity]
+
+      if (DoConstraint) {noColide(WhlEnt, AftWhl), NoColideIndex++}
+    }
+    #else
+    NoColideCore = 0
+    #endif
+    data_CI(NoColideCore, NoColideIndex)
+  }
+
+  function void printDebug() {
+    # Color
+    local Red   = vec(250,  0,   0 )
+    local Green = vec(150, 250, 150)
+    local White = vec(250, 250, 250)
+
+    # Title
+    printColor(White, "[Suspenstion Setup V3]")
+
+    # Data array: [1].Core, [2].Index
+                  (1).ConsBreak, (2).Rope, (3).Elastic, (4).Ballsocket, (5).Nocolide
+
+    # CoreCheck
+    printColor(
+      White, "CoreCheck: ",
+
+    )
+    
+    # Constraints
+    printColor(
+      White, "Constraints: ",
+      Rope       ? Green : Red, "Rope("       + RopeIndex       + ")", White, " / ", 
+      Elastic    ? Green : Red, "Elastic("    + ElasticIndex    + ")", White, " / ",
+      Ballsocket ? Green : Red, "Ballsocket(" + BallsocketIndex + ")", White, " / ",
+      Nocolide   ? Green : Red, "Nocolide("   + NoColideIndex   + ")"
+    )
+  }
+
+  function void drawHolo() {
+
+  }
+
+  if (Rope)       {Wheels:setRope()}
+  if (Elastic)    {Wheels:setElastic()}
+  if (Ballsocket) {Wheels:setBallsocket()}
+  if (Nocolide)   {Wheels:setNocolide()}
+  if (PrintDebug) {printDebug()}
+  if (DrawHolo)
+}
+
+
+
+if (dupefinished()) {
+  if (DeleteE2) {
+    #ifdef entity:propDelete()
+    entity():propDelete()
+    #else
+    printColor()
+  }
+}
+
+# Made By RuBid Suspenstion Setup V3 Beta V2020.10.01
