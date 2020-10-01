@@ -108,8 +108,8 @@ if (first() | dupefinished()) {
   }
 
   function void array:setBallsocket() {
-    #ifdef ballsocket(entity, vector, entity, vector, vector, number)
-    local Sprocket = WhlEnt[1, entity]
+    #ifdef ballsocket(entity, vector, entity, vector, vector, vector, number)
+    local Sprocket = Wheels[1, entity]
 
     for (I = 1, WheelCount) {
       local WhlEnt = Wheels[I, entity]
