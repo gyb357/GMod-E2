@@ -1,12 +1,18 @@
 @name Suspenstion Setup V3 Beta
 @inputs  [Wheels]:array [Chassis]:entity
-@persist [ConstBreak Rope Elastic Ballsocket Nocolide DoConstraint PrintDebug DrawHolo DeleteE2]:number
+@persist [ApplyForTank DoConstraint PrintDebug DrawHolo DeleteE2 ConstBreak Rope Elastic Ballsocket Nocolide]:number
 @persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string
 @persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
 @persist [ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoColideIndex]:number
 @persist [Core Index]:array
 
 if (first() | dupefinished()) {
+  # ----- Action Setting ----- #
+  ApplyForTank = 1
+  DoConstraint = 1
+  PrintDebug   = 1
+  DrawHolo     = 1
+  DeleteE2     = 0
 
   # ----- Constraints Setting ----- #
   ConstBreak = 1
@@ -14,12 +20,6 @@ if (first() | dupefinished()) {
   Elastic    = 1
   Ballsocket = 1
   Nocolide   = 1
-
-  # ----- Action Setting ----- #
-  DoConstraint = 1
-  PrintDebug   = 1
-  DrawHolo     = 1
-  DeleteE2     = 0
 
   # ----- Suspenstion Setting ----- #
     # Position
@@ -67,7 +67,6 @@ if (first() | dupefinished()) {
 
   function void array:setRope() {
     #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
-
     for (I = 1, WheelCount) {
       local WhlEnt  = Wheels[I, entity]
 
@@ -78,12 +77,15 @@ if (first() | dupefinished()) {
         RopeIndex++
 
         if (DrawHolo) {
-          local HoloPos = (WhlEnt:massCenter() + ToLocal)/2
-          local HoloAng = (HoloPos - ToLocal):toAngle()
+          local WhlCenter = WhlEnt:massCenter()
+          local Pos = (WhlCenter + ToLocal)/2
+          local Ang = (Pos - ToLocal):toAngle()
 
-          local HoloScale = vec(0.2, Forward, 0.2)
-          local HoloColor = vec(50, 50, 250)
-          for (I = 1, RopeIndex) {holoCreate(I, Pos, Scale, Ang, Color)}
+          local Scale = vec(0.2, Forward, 0.2)
+          local Color = vec(50, 50, 250)
+
+          for (I = 1, RopeIndex)  {holoCreate(I, Pos, Scale, Ang, Color)}
+          #for (I = 1, WheelCount) {holoCreate(I, WhlCenter, Scale, Chassis:angles(), Color, )}
         }
 
         if (DoConstraint) {rope(RopeIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, 0, Width, Material, 1)}
@@ -107,7 +109,6 @@ if (first() | dupefinished()) {
 
   function void array:setBallsocket() {
     #ifdef ballsocket(entity, vector, entity, vector, vector, number)
-
     local Sprocket = WhlEnt[1, entity]
 
     for (I = 1, WheelCount) {
@@ -127,7 +128,6 @@ if (first() | dupefinished()) {
 
   function void array:setNocolide() {
     #ifdef noColide(entity, entity)
-
     for (I = 1, WheelCount) {
       local WhlEnt = Wheels[I, entity]
       local AftWhl = Wheels[I+1, entity]
