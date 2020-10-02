@@ -4,7 +4,7 @@
 @persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string
 @persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
 @persist [ConsBreakCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoColideIndex]:number
-@persist [Core Index]:array
+@persist [Core Index]:array [HoloPos HoloAng]:array
 
 if (first() | dupefinished()) {
   # ----- Action Setting ----- #
@@ -68,6 +68,13 @@ if (first() | dupefinished()) {
     return Chassis:toLocal(Ent:massCenter()) + vec(Forward, Right*Sign, Up):rotate(Pitch, Yaw, Roll)
   }
 
+  function void holoPosAng(Ent:entity, Vector:vector) {
+    local StartPos = Ent:massCenter()
+
+    HoloPos:pushVector((StartPos + Vector)/2)
+    HoloAng:pushAngle((StartPos - Vector):toAngle())
+  }
+
   function void array:setRope() {
     #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
     for (I = 1, WheelCount) {
@@ -80,32 +87,32 @@ if (first() | dupefinished()) {
         RopeIndex++
 
         if (CreateCons) {rope(RopeIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, 0, Width, Material, 1)}
-        if (DrawHolo) {
-          local WhlCenter = WhlEnt:massCenter()
-          HoloPos = (WhlCenter + ToLocal)/2
-          HoloAng = (Pos - ToLocal):toAngle()
-        }
+        if (DrawHolo)   {holoPosAng(WhlEnt, ToLocal)}
       }
     }
     if (DrawHolo) {
-      local Scale = vec(0.2, Forward, 0.2)
-      local Color = vec(50, 50, 250)
-
-      for (I = 1, RopeIndex)  {holoCreate(I, Pos, Scale, Ang, Color)}
-      #for (I = 1, WheelCount) {holoCreate(I, WhlCenter, Scale, Chassis:angles(), Color, )}
+      local Scale = vec(0.2, Forward*2, 0.2)
+      local Color = vec(250, 50, 50)
+      for (I = 1, RopeIndex)  {holoCreate(I, HoloPos[I, vector], Scale, HoloAng[I, angle], Color)}
     }
     #endif
   }
 
-  function void array:setElastic() {
+  function void array:setElastic(Vector:vector) {
     #ifdef hydraulic(number, entity, vector, entity, vector, number, number, number, string, number, number)
     for (I = 1, WheelCount) {
       local WhlEnt  = Wheels[I, entity]
-      local ToLocal = localPos(1, WhlEnt)
+      local ToLocal = localPos(1, WhlEnt) + Vector
 
       ElasticIndex++
 
       if (CreateCons) {hydraulic(ElasticIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, Spring, Damping, Relative, Material, Width, 0)}
+      if (DrawHolo)   {holoPosAng(WhlEnt, ToLocal)}
+    }
+    if (DrawHolo) {
+      local Scale = vec(0.2, Forward*2, 0.2)
+      local Color = vec(250, 150, 50)
+      for (I = RopeIndex, RopeIndex + ElasticIndex) {holoCreate(I, HoloPos[I, vector], Scale, HoloAng[I, angle], Color)}
     }
     #endif
   }
@@ -177,11 +184,10 @@ if (first() | dupefinished()) {
     if (DrawHolo) {
       printColor(
         White, "HologramColor: ",
-        vec(50, 50, 250),  "Rope",                    White, " / ",
-        vec(50, 250, 50),  "Wheel motion prediction", White, " / ",
-        vec(250, 150, 50), "Ballsocket",              White, " / ",
-        vec()
-
+        vec(250,  50, 50), "Rope",       White, " / ",
+        vec(250, 150, 50), "Elastic",    White, " / ",
+        vec(250, 200, 50), "Ballsocket", White, " / ",
+        vec(150, 250, 50), "Nocolide",   White, " / "
       )
     }
   }
