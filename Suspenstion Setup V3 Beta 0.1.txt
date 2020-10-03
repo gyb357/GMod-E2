@@ -1,4 +1,4 @@
-@name Suspenstion Setup V3 Beta
+@name Suspenstion Setup V3 Beta 0.1
 @inputs  [Wheels]:array [Chassis]:entity
 @persist [ApplyForTank CreateCons PrintDebug DeleteE2 ConstBreak Rope Elastic Ballsocket Nocollide]:number
 @persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string [PlusVecter]:vector
@@ -71,7 +71,7 @@ if (first() | dupefinished()) {
   function void array:setRope() {
     #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
     for (I = 1, WheelCount) {
-      local WhlEnt  = Wheels[I, entity]
+      local WhlEnt  = Wheels[1+I, entity]
 
       for (J = 1, 2) {
         local Sign    = J == 1 ? 1 : -1
@@ -88,7 +88,7 @@ if (first() | dupefinished()) {
   function void array:setElastic(Vector:vector) {
     #ifdef hydraulic(number, entity, vector, entity, vector, number, number, number, string, number, number)
     for (I = 1, WheelCount) {
-      local WhlEnt  = Wheels[I, entity]
+      local WhlEnt  = Wheels[1+I, entity]
       local ToLocal = localPos(1, WhlEnt, 0) + Vector
 
       ElasticIndex++
@@ -156,12 +156,16 @@ if (first() | dupefinished()) {
       C_Rope,       "Rope("         + RopeIndex       + ")",            White, " / ", 
       C_Elastic,    "Elastic("      + ElasticIndex    + ")",            White, " / ",
       C_Ballsocket, "Ballsocket("   + BallsocketIndex + ")",            White, " / ",
-      C_Nocollide,  "Nocolide("     + NoCollideIndex  + ")"
+      C_Nocollide,  "Nocollide("    + NoCollideIndex  + ")"
     )
   }
 
   if (ConstBreak) {Wheels:consBreak()}
   if (CreateCons) {
+    #ifdef entity():propGravity(number) # Checking weightlessness
+    Chassis:propGravity(1)
+    #endif
+
     if (Rope)       {Wheels:setRope()}
     if (Elastic)    {Wheels:setElastic(PlusVecter)}
     if (Ballsocket) {Wheels:setBallsocket()}
@@ -174,10 +178,10 @@ if (dupefinished()) {
   if (DeleteE2) {
     #ifdef entity:propDelete()
     entity():propDelete()
-    hint("Deleted Suspenstion Setup V3 E2 ", 3)
+    hint("Deleted Suspenstion Setup V3 E2", 3)
     #endif
   }
 }
 
-# Made by RuBid Suspenstion Setup V3 Beta V2020.10.03
+# Made by RuBid Suspenstion Setup V3 Beta 0.1 V2020.10.03
 
