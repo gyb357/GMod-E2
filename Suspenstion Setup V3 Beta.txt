@@ -115,7 +115,7 @@ if (first() | dupefinished()) {
     #endif
   }
 
-  function void array:setNocolide() {
+  function void array:setNocollide() {
     #ifdef noCollide(entity, entity)
     for (I = 1, WheelCount) {
       local WhlEnt = Wheels[I, entity]
@@ -150,7 +150,7 @@ if (first() | dupefinished()) {
     # Constraints
     printColor(
       White,        "Constraints: ",
-      C_ConsBreak,  "Deleted "      + ConsBreakIndex  + " Constraints", white, " / ",
+      C_ConsBreak,  "Deleted "      + ConsBreakIndex  + " Constraints", White, " / ",
       C_Rope,       "Rope("         + RopeIndex       + ")",            White, " / ", 
       C_Elastic,    "Elastic("      + ElasticIndex    + ")",            White, " / ",
       C_Ballsocket, "Ballsocket("   + BallsocketIndex + ")",            White, " / ",
@@ -163,7 +163,7 @@ if (first() | dupefinished()) {
     if (Rope)       {Wheels:setRope()}
     if (Elastic)    {Wheels:setElastic(PlusVecter)}
     if (Ballsocket) {Wheels:setBallsocket()}
-    if (Nocolide)   {Wheels:setNocolide()}
+    if (Nocolide)   {Wheels:setNocollide()}
   }
   if (PrintDebug) {printDebug()}
 }
