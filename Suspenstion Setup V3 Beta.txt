@@ -42,7 +42,7 @@ if (first() | dupefinished()) {
     Material = "cable/cable2"
 
   # ----- Don't modify below part ----- #
-    ConsArray  = array("rope", "elastic", "ADVballsocket", "nocolide")
+    ConsArray  = array("Rope", "Elastic", "ADVballsocket", "Nocollide")
     ConsCount  = ConsArray:count()
     WheelCount = Wheels:count()
     NilVec     = vec(0.01, 0.01, 0.01)
