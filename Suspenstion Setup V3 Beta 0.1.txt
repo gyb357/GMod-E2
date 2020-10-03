@@ -71,7 +71,7 @@ if (first() | dupefinished()) {
 
   function void array:setRope() {
     #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
-    for (I = 1, WheelCount) {
+    for (I = 1, WheelCount - PlusIndex) {
       local WhlEnt = Wheels[PlusIndex + I, entity]
 
       for (J = 1, 2) {
@@ -88,7 +88,7 @@ if (first() | dupefinished()) {
 
   function void array:setElastic(Vector:vector) {
     #ifdef hydraulic(number, entity, vector, entity, vector, number, number, number, string, number, number)
-    for (I = 1, WheelCount) {
+    for (I = 1, WheelCount - PlusIndex) {
       local WhlEnt  = Wheels[PlusIndex + I, entity]
       local ToLocal = localPos(1, WhlEnt, 0) + Vector
 
