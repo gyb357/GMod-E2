@@ -1,9 +1,9 @@
 @name Suspenstion Setup V3 Beta
 @inputs  [Wheels]:array [Chassis]:entity
-@persist [ApplyForTank CreateCons PrintDebug DeleteE2 ConstBreak Rope Elastic Ballsocket Nocolide]:number
+@persist [ApplyForTank CreateCons PrintDebug DeleteE2 ConstBreak Rope Elastic Ballsocket Nocollide]:number
 @persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string [PlusVecter]:vector
 @persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
-@persist [ConsBreakCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoColideIndex]:number
+@persist [ConsBreakCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoCollideIndex]:number
 @persist [Core Index]:array [HoloPos HoloAng]:array
 
 if (first() | dupefinished()) {
@@ -18,7 +18,7 @@ if (first() | dupefinished()) {
   Rope       = 1
   Elastic    = 1
   Ballsocket = 1
-  Nocolide   = 1
+  Nocollide  = 1
 
   # ----- Suspenstion Setting ----- #
     # Position
@@ -123,10 +123,10 @@ if (first() | dupefinished()) {
       if (ApplyForTank) {
         local AftWhl = Wheels[I+1, entity]
 
-        noColide(WhlEnt, AftWhl), NoColideIndex++
+        noCollide(WhlEnt, AftWhl), NoCollideIndex++
       }
       else {
-        noColide(WhlEnt, Chassis), NoColideIndex++
+        noCollide(WhlEnt, Chassis), NoCollideIndex++
       }
     }
     #endif
@@ -142,7 +142,7 @@ if (first() | dupefinished()) {
     local C_Rope       = Rope          ? Green : Red
     local C_Elastic    = Elastic       ? Green : Red
     local C_Ballsocket = Ballsocket    ? Green : Red
-    local C_Nocolide   = Nocolide      ? Green : Red
+    local C_Nocollide  = Nocollide     ? Green : Red
 
     # Title
     printColor(White, "[Suspenstion Setup V3]")
@@ -154,7 +154,7 @@ if (first() | dupefinished()) {
       C_Rope,       "Rope("         + RopeIndex       + ")",            White, " / ", 
       C_Elastic,    "Elastic("      + ElasticIndex    + ")",            White, " / ",
       C_Ballsocket, "Ballsocket("   + BallsocketIndex + ")",            White, " / ",
-      C_Nocolide,   "Nocolide("     + NoColideIndex   + ")"
+      C_Nocolide,   "Nocolide("     + NoCollideIndex  + ")"
     )
   }
 
@@ -178,3 +178,4 @@ if (dupefinished()) {
 }
 
 # Made by RuBid Suspenstion Setup V3 Beta V2020.10.03
+
