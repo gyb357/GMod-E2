@@ -2,7 +2,7 @@
 @inputs  [Wheels]:array [Chassis]:entity
 @persist [ApplyForTank CreateCons PrintDebug DeleteE2 ConstBreak Rope Elastic Ballsocket Nocollide]:number
 @persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string [PlusVecter]:vector
-@persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
+@persist [ConsArray]:array [ConsCount WheelCount PlusIndex]:number [NilVec]:vector
 @persist [ConsBreakCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoCollideIndex]:number
 @persist [Core Index]:array [HoloPos HoloAng]:array
 
@@ -45,6 +45,7 @@ if (first() | dupefinished()) {
     ConsArray  = array("Rope", "Elastic", "ADVballsocket", "Nocollide")
     ConsCount  = ConsArray:count()
     WheelCount = Wheels:count()
+    PlusIndex  = ApplyForTank ? 1 : 0
     NilVec     = vec(0.01, 0.01, 0.01)
 
   function void array:consBreak() {
@@ -71,7 +72,7 @@ if (first() | dupefinished()) {
   function void array:setRope() {
     #ifdef rope(number, entity, vector, entity, vector, number, number, string, number)
     for (I = 1, WheelCount) {
-      local WhlEnt  = Wheels[1+I, entity]
+      local WhlEnt = Wheels[PlusIndex + I, entity]
 
       for (J = 1, 2) {
         local Sign    = J == 1 ? 1 : -1
@@ -88,7 +89,7 @@ if (first() | dupefinished()) {
   function void array:setElastic(Vector:vector) {
     #ifdef hydraulic(number, entity, vector, entity, vector, number, number, number, string, number, number)
     for (I = 1, WheelCount) {
-      local WhlEnt  = Wheels[1+I, entity]
+      local WhlEnt  = Wheels[PlusIndex + I, entity]
       local ToLocal = localPos(1, WhlEnt, 0) + Vector
 
       ElasticIndex++
