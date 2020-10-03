@@ -100,15 +100,17 @@ if (first() | dupefinished()) {
 
   function void array:setBallsocket() {
     #ifdef ballsocket(entity, vector, entity, vector, vector, vector, number)
+    local Sprocket = Wheels[1, entity]
+    
     for (I = 1, WheelCount) {
       local WhlEnt = Wheels[I, entity]
 
       if (ApplyForTank) {
         if (Chassis) {
-          ballsocket(WhlEnt, NilVec, Chassis, -vec(180, 0.01, 0.01), vec(180, 0.01, 0.01), NilVec, 1)
+          ballsocket(WhlEnt, vec(), Chassis, -vec(180, 0.01, 0.01), vec(180, 0.01, 0.01), vec(), 1)
           BallsocketIndex++
         }
-        ballsocket(Wheels[1+I, entity], NilVec, Sprocket, -NilVec, NilVec, NilVec, 1)
+        ballsocket(Wheels[1+I, entity], vec(), Sprocket, -NilVec, NilVec, vec(), 1)
         BallsocketIndex++
       }
     }
