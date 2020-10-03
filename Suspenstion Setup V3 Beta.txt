@@ -1,7 +1,7 @@
 @name Suspenstion Setup V3 Beta
 @inputs  [Wheels]:array [Chassis]:entity
-@persist [ApplyForTank CreateCons PrintDebug DrawHolo DeleteE2 ConstBreak Rope Elastic Ballsocket Nocolide]:number
-@persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string
+@persist [ApplyForTank CreateCons PrintDebug DeleteE2 ConstBreak Rope Elastic Ballsocket Nocolide]:number
+@persist [Forward Right Up Pitch Yaw Roll Spring Damping Relative Width]:number [Material]:string [PlusVecter]:vector
 @persist [ConsArray]:array [ConsCount WheelCount]:number [NilVec]:vector
 @persist [ConsBreakCore ConsBreakIndex RopeIndex ElasticIndex BallsocketIndex NoColideIndex]:number
 @persist [Core Index]:array [HoloPos HoloAng]:array
@@ -11,7 +11,6 @@ if (first() | dupefinished()) {
   ApplyForTank = 1
   CreateCons   = 1
   PrintDebug   = 1
-  DrawHolo     = 1
   DeleteE2     = 0
 
   # ----- Constraints Setting ----- #
@@ -36,6 +35,7 @@ if (first() | dupefinished()) {
     Spring   = 50000
     Damping  = 5000
     Relative = 1000
+    PlusVecter = vec(0, 0, 0)
 
     # Draw
     Width    = 0
@@ -56,7 +56,7 @@ if (first() | dupefinished()) {
       for (J = 1, ConsCount) {
         local ConsStr = ConsArray[J, string]
 
-        if (CreateCons & WhlEnt:isConstrainedTo(ConsStr)) {WhlEnt:constraintBreak(ConsStr), ConsBreakIndex++}
+        if (WhlEnt:isConstrainedTo(ConsStr)) {WhlEnt:constraintBreak(ConsStr), ConsBreakIndex++}
       }
     }
     #else
@@ -66,13 +66,6 @@ if (first() | dupefinished()) {
 
   function vector localPos(Sign:number, Ent:entity) {
     return Chassis:toLocal(Ent:massCenter()) + vec(Forward, Right*Sign, Up):rotate(Pitch, Yaw, Roll)
-  }
-
-  function void holoPosAng(Ent:entity, Vector:vector) {
-    local StartPos = Ent:massCenter()
-
-    HoloPos:pushVector((StartPos + Vector)/2)
-    HoloAng:pushAngle((StartPos - Vector):toAngle())
   }
 
   function void array:setRope() {
@@ -86,14 +79,8 @@ if (first() | dupefinished()) {
 
         RopeIndex++
 
-        if (CreateCons) {rope(RopeIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, 0, Width, Material, 1)}
-        if (DrawHolo)   {holoPosAng(WhlEnt, ToLocal)}
+        rope(RopeIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, 0, Width, Material, 1)
       }
-    }
-    if (DrawHolo) {
-      local Scale = vec(0.2, Forward*2, 0.2)
-      local Color = vec(250, 50, 50)
-      for (I = 1, RopeIndex)  {holoCreate(I, HoloPos[I, vector], Scale, HoloAng[I, angle], Color)}
     }
     #endif
   }
@@ -106,25 +93,17 @@ if (first() | dupefinished()) {
 
       ElasticIndex++
 
-      if (CreateCons) {hydraulic(ElasticIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, Spring, Damping, Relative, Material, Width, 0)}
-      if (DrawHolo)   {holoPosAng(WhlEnt, ToLocal)}
-    }
-    if (DrawHolo) {
-      local Scale = vec(0.2, Forward*2, 0.2)
-      local Color = vec(250, 150, 50)
-      for (I = RopeIndex, RopeIndex + ElasticIndex) {holoCreate(I, HoloPos[I, vector], Scale, HoloAng[I, angle], Color)}
+      hydraulic(ElasticIndex, WhlEnt, WhlEnt:massCenterL(), Chassis, ToLocal, Spring, Damping, Relative, Material, Width, 0)
     }
     #endif
   }
 
   function void array:setBallsocket() {
     #ifdef ballsocket(entity, vector, entity, vector, vector, vector, number)
-    local Sprocket = Wheels[1, entity]
+    for (I = 1, WheelCount) {
+      local WhlEnt = Wheels[I, entity]
 
-    if (CreateCons) {
-      for (I = 1, WheelCount) {
-        local WhlEnt = Wheels[I, entity]
-
+      if (ApplyForTank) {
         if (Chassis) {
           ballsocket(WhlEnt, NilVec, Chassis, -vec(180, 0.01, 0.01), vec(180, 0.01, 0.01), NilVec, 1)
           BallsocketIndex++
@@ -138,18 +117,16 @@ if (first() | dupefinished()) {
 
   function void array:setNocolide() {
     #ifdef noCollide(entity, entity)
-    if (CreateCons) {
-      for (I = 1, WheelCount) {
-        local WhlEnt = Wheels[I, entity]
+    for (I = 1, WheelCount) {
+      local WhlEnt = Wheels[I, entity]
 
-        if (ApplyForTank) {
-          local AftWhl = Wheels[I+1, entity]
+      if (ApplyForTank) {
+        local AftWhl = Wheels[I+1, entity]
 
-          noColide(WhlEnt, AftWhl), NoColideIndex++
-        }
-        else {
-          noColide(WhlEnt, Chassis), NoColideIndex++
-        }
+        noColide(WhlEnt, AftWhl), NoColideIndex++
+      }
+      else {
+        noColide(WhlEnt, Chassis), NoColideIndex++
       }
     }
     #endif
@@ -173,30 +150,21 @@ if (first() | dupefinished()) {
     # Constraints
     printColor(
       White,        "Constraints: ",
-      Green,        "Deleted "      + ConsBreakIndex  + " Constraints", white, " / ",
+      C_ConsBreak,  "Deleted "      + ConsBreakIndex  + " Constraints", white, " / ",
       C_Rope,       "Rope("         + RopeIndex       + ")",            White, " / ", 
       C_Elastic,    "Elastic("      + ElasticIndex    + ")",            White, " / ",
       C_Ballsocket, "Ballsocket("   + BallsocketIndex + ")",            White, " / ",
       C_Nocolide,   "Nocolide("     + NoColideIndex   + ")"
     )
-
-    # HologramColor
-    if (DrawHolo) {
-      printColor(
-        White, "HologramColor: ",
-        vec(250,  50, 50), "Rope",       White, " / ",
-        vec(250, 150, 50), "Elastic",    White, " / ",
-        vec(250, 200, 50), "Ballsocket", White, " / ",
-        vec(150, 250, 50), "Nocolide",   White, " / "
-      )
-    }
   }
 
   if (ConstBreak) {Wheels:consBreak()}
-  if (Rope)       {Wheels:setRope()}
-  if (Elastic)    {Wheels:setElastic()}
-  if (Ballsocket) {Wheels:setBallsocket()}
-  if (Nocolide)   {Wheels:setNocolide()}
+  if (CreateCons) {
+    if (Rope)       {Wheels:setRope()}
+    if (Elastic)    {Wheels:setElastic(PlusVecter)}
+    if (Ballsocket) {Wheels:setBallsocket()}
+    if (Nocolide)   {Wheels:setNocolide()}
+  }
   if (PrintDebug) {printDebug()}
 }
 
@@ -204,9 +172,9 @@ if (dupefinished()) {
   if (DeleteE2) {
     #ifdef entity:propDelete()
     entity():propDelete()
-    hint("Suspenstion Setup V3 E2 Deleted", 3)
+    hint("Deleted Suspenstion Setup V3 E2 ", 3)
     #endif
   }
 }
 
-# Made by RuBid Suspenstion Setup V3 Beta
+# Made by RuBid Suspenstion Setup V3 Beta V2020.10.03
