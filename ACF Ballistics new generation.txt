@@ -1,0 +1,57 @@
+@name
+@inputs  
+@outputs 
+@persist [Pi Caliber Mass DragDiv DragCoef]:number [Vel G]:vector [Dt]:number
+
+@persist [PosS Accf]:vector
+
+if (first() | dupefinished()) {
+    Pi      = 3.141592
+    Caliber = 120
+    Mass    = Gun:acfProjectileMass()
+    DragDiv = acfDragDiv()
+    
+    DragCoef = (Pi*Caliber^2)/(4e6*Mass*DragDiv)
+    
+    Vel = Gun:acfMuzzleVel()*39.37
+    G   = vec(0, 0, -gravity())
+
+    Dt = 1
+    
+    function array rk4(Dt:number) {
+      Drag = Vel:length()*DragCoef
+      Acc1 = G - Drag*Vel1
+      
+      Vel2 = Vel + Acc1*Dt/2
+      Acc2 = G - Drag*Vel2
+      Vel3 = Vel + Acc2*Dt/2
+      Acc3 = G - Drag*Vel3
+      
+      Vel4 = Vel + Acc3*Dt
+      Acc4 = G - Drag*Vel4
+      
+      PosS += (Dt/6)*(Vel + 2*(Vel2 + Vel3) + Vel4)
+      AccS += (Dt/6)*(Acc1 + 2*(Acc2 + Acc3) + Acc4)
+      return array(Pos, Acc)
+}
+
+  function norm(N:number, Bef:number, Aft:number)    {return (N - Bef)/(Aft - Bef)}
+  function lerp(Norm:number, Bef:number, Aft:number) {return Bef + (Aft - Bef)*Norm}
+
+
+
+local BefPos = Trajectory[1, vector]
+Trajectory   = rk4(Dt)
+local Pos = Trajectory[1, vector]
+local Vel = Trajectory[2, vector]
+
+DataTime += 0.066
+
+Dist = GunPos:distance(TargetPos)
+
+if(Pos:length() >= Dist) {
+  local Norm = norm(Dist, VecP[1], Vec[1])
+
+  ElevPos:pushNumber(vec(0) - lerp(Norm, BefPos, Pos):z())
+  Count++
+}
