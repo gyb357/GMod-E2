@@ -1,0 +1,61 @@
+@name ACF TankTurret FCS V4 Alpha
+@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number
+@outputs [CpuOps]:number
+@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM Dt M]:number
+@persist [BulletPos BulletVel]:vector2
+
+interval(50)
+
+if (first()) {
+  Gravity = vec2(0, -gravity())
+
+  Pi = pi()
+  Caliber = Gun:acfCaliber()
+  DragDiv = acfDragDiv()
+
+  ToM = 39.37
+  Dt = 0.2
+  M = -10
+}
+
+if (Solve) {
+  AmmoType = Gun:acfAmmoType()
+  if (changed(AmmoType) & AmmoType) {
+    Mass     = Gun:acfProjectileMass()
+    DragCoef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
+    Mv0      = Gun:acfMuzzleVelocity()*ToM
+  }
+
+  HitPos = Cam["HitPos", vector]
+  GunPos = Gun:attachmentPos("muzzle")
+
+  Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
+  Dy = HitPos:z() - GunPos:z()
+  K  = Dy/Dx
+  Limit = K*BulletPos:x() + M
+
+  Diff = abs(Dx - BulletPos:x())
+  if () {
+
+    V0 = vec2()
+    while ((BulletPos:y() > Limit) & perf()) {
+      Kv = V0:length()*DragCoef
+      Vel1 = V0
+      Acc1 = Gravity -Kv*Vel1
+
+      Vel2 = Vel1 + Acc1*Dt/2
+      Acc2 = Gravity - Kv*Vel2
+      Vel3 = Vel1 + Acc2*Dt/2
+      Acc3 = Gravity - Kv*Vel3
+
+      Vel4 = Vel1 + Acc3*Dt
+      Acc4 = Gravity - Kv*Vel4
+
+      BulletPos += (Dt/6)*(Vel1 + 2*(Vel2 + Vel3) + Vel4)
+      BulletVel += (Dt/6)*(Acc1 + 2*(Acc2 + Acc3) + Acc4)
+    }
+  }
+}
+
+  CpuOps = array(cpuUsage()*10^6, ops())
+
