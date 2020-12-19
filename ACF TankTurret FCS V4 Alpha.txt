@@ -1,8 +1,14 @@
-@name ACF TankTurret FCS V4 Alpha
-@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number
-@outputs [CpuOps]:number
-@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM Dt M]:number
-@persist [BulletPos BulletVel]:vector2
+@name ACF TankTurret FCS V4 Alpha 0.2
+@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve HaF]:number
+@outputs [CpuOps]:array [EndPos]:vector2 [Hit Correct]:number
+
+@persist [Gravity]:vector2 [Pi Caliber DragDiv TickInterval ToM_ACF ToM Dt M Tolerance]:number
+@persist [Kp Ki Kd]:number
+
+@persist [P I D Cv]:number
+@persist [BulletPos BulletAcc]:vector2
+
+@persist [Hit]:number
 
 interval(50)
 
@@ -13,17 +19,32 @@ if (first()) {
   Caliber = Gun:acfCaliber()
   DragDiv = acfDragDiv()
 
-  ToM = 39.37
+  TickInterval = tickInterval()
+
+  ToM_ACF = 39.37
+  ToM = 0.01905
   Dt = 0.2
-  M = -10
+  M = -100
+  Tolerance = 100
+
+  Kp = 0.01
+  Ki = 0.01
+  Kd = 0.01
 }
 
-if (Solve) {
+  Active = Pod["Active", number]
+
+if (changed(Active) & Active) {
+  Cam["Distance", number] = 100
+  Cam["Position", vector] = Gun:pos() + vec(0, 0, 100)
+}
+
+if (Active) {
   AmmoType = Gun:acfAmmoType()
   if (changed(AmmoType) & AmmoType) {
     Mass     = Gun:acfProjectileMass()
     DragCoef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
-    Mv0      = Gun:acfMuzzleVelocity()*ToM
+    Mv0      = Gun:acfMuzzleVel()*ToM_ACF
   }
 
   HitPos = Cam["HitPos", vector]
@@ -34,11 +55,30 @@ if (Solve) {
   K  = Dy/Dx
   Limit = K*BulletPos:x() + M
 
-  Diff = abs(Dx - BulletPos:x())
-  if () {
+  TargetRange = GunPos:distance(HitPos)
+  Angle = (HitPos - GunPos):toAngle()
+  Pitch = Angle:pitch()
+  Yaw = Angle:yaw()
 
-    V0 = vec2()
-    while ((BulletPos:y() > Limit) & perf()) {
+  Gun:setAng(ang(Pitch + Correct, Yaw, 0))
+}
+
+if (changed(!Hit) & !Hit) {
+  EndPos = vec2(0, 0)
+}
+
+if (Solve & !Hit) {
+  while ((EndPos:x() < TargetRange) & perf()) {
+    P = (EndPos:x() - TargetRange)*ToM*0.01
+    I = clamp(I + P*TickInterval, -30, 30)
+    D = ($P)/TickInterval
+    Cv = clamp(Kp*P + Ki*I + Kd*D, 0, 45)
+
+    Correct = Cv
+    Theta = (Pitch + Correct)*(Pi/180)
+    V0 = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
+
+    while (BulletPos:y() > Limit) {
       Kv = V0:length()*DragCoef
       Vel1 = V0
       Acc1 = Gravity -Kv*Vel1
@@ -52,10 +92,18 @@ if (Solve) {
       Acc4 = Gravity - Kv*Vel4
 
       BulletPos += (Dt/6)*(Vel1 + 2*(Vel2 + Vel3) + Vel4)
-      BulletVel += (Dt/6)*(Acc1 + 2*(Acc2 + Acc3) + Acc4)
+      BulletAcc += (Dt/6)*(Acc1 + 2*(Acc2 + Acc3) + Acc4)
+      EndPos = BulletPos
     }
+    BulletPos = vec2(0, 0)
+    BulletAcc = V0
+  }
+  if ((EndPos:x() > TargetRange) & (EndPos:y() < Dy)) {
+    Hit = 1
+  }
+  else {
+    Hit = 0
   }
 }
 
   CpuOps = array(cpuUsage()*10^6, ops())
-
