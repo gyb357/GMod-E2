@@ -1,109 +1,108 @@
-@name ACF TankTurret FCS V4 Alpha 0.2
-@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve HaF]:number
-@outputs [CpuOps]:array [EndPos]:vector2 [Hit Correct]:number
+@name ACF TankTurret FCS V4 Alpha 0.3
+@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number
+@outputs [CpuOps]:array [EndPos]:vector2 [Lk Pitch Cth]:number
+@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM Dt M Tolerance Increase]:number
 
-@persist [Gravity]:vector2 [Pi Caliber DragDiv TickInterval ToM_ACF ToM Dt M Tolerance]:number
-@persist [Kp Ki Kd]:number
+@persist [Mass K Mv0]:number
 
-@persist [P I D Cv]:number
-@persist [BulletPos BulletAcc]:vector2
-
-@persist [Hit]:number
+@persist [Rk4]:array [Pos EndPos Cv0]:vector2 [Hit Run Cor Cth]:number
 
 interval(50)
 
-if (first()) {
+if (first() | dupefinished()) {
   Gravity = vec2(0, -gravity())
 
   Pi = pi()
   Caliber = Gun:acfCaliber()
   DragDiv = acfDragDiv()
+  ToM = 39.37
 
-  TickInterval = tickInterval()
+  Dt = 0.01
+  M  = -10
+  Tolerance = 10
+  Increase = 0.0001
 
-  ToM_ACF = 39.37
-  ToM = 0.01905
-  Dt = 0.2
-  M = -100
-  Tolerance = 100
+  function array rk4(Comp:array, K, Dt) {
+    P1 = Comp[1, vector2]
+    V1 = Comp[2, vector2]
 
-  Kp = 0.01
-  Ki = 0.01
-  Kd = 0.01
+    Kv = V1:length()*K
+
+    A1 = Gravity -Kv*V1
+
+    V2 = V1 + A1*Dt/2
+    A2 = Gravity - Kv*V2
+    V3 = V1 + A2*Dt/2
+    A3 = Gravity - Kv*V3
+
+    V4 = V1 + A3*Dt
+    A4 = Gravity - Kv*V4
+
+    Xf = P1 + (Dt/6)*(V1 + 2*(V2 + V3) + V4)
+    Vf = V1 + (Dt/6)*(A1 + 2*(A2 + A3) + A4)
+    return array(Xf, Vf)
+  }
 }
 
   Active = Pod["Active", number]
-
 if (changed(Active) & Active) {
-  Cam["Distance", number] = 100
-  Cam["Position", vector] = Gun:pos() + vec(0, 0, 100)
+  Driver = Pod["Driver", entity]
+  Cam["Position", vector] = Driver:pos() + vec(0, 0, 50)
+  Cam["Distacne", number] = 100
+
+  Mass = Gun:acfProjectileMass()
+  K    = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
+  Mv0  = Gun:acfMuzzleVel()*ToM
 }
 
 if (Active) {
-  AmmoType = Gun:acfAmmoType()
-  if (changed(AmmoType) & AmmoType) {
-    Mass     = Gun:acfProjectileMass()
-    DragCoef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
-    Mv0      = Gun:acfMuzzleVel()*ToM_ACF
+  HitPos = Cam["HitPos", vector]
+  GunPos = Gun:massCenter()
+  Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
+  Dy = (HitPos:z() - GunPos:z())
+  Lk = (Dy/Dx)
+
+  Angle = (HitPos - GunPos):toAngle()
+  Theta = toRad(Angle:pitch())
+
+  if (!Solve) {
+    V0  = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
+    Rk4 = array(vec2(0, 0), V0)
+    Hit = Run = 0
+  }
+  if (Solve & !Run) {
+    Run = 1
   }
 
-  HitPos = Cam["HitPos", vector]
-  GunPos = Gun:attachmentPos("muzzle")
+  if (Solve & Run) {
+    while (perf() & !Hit) {
+      Rk4 = rk4(Rk4, K, Dt)
+      Pos = Rk4[1, vector2]
+      Vel = Rk4[2, vector2]
 
-  Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
-  Dy = HitPos:z() - GunPos:z()
-  K  = Dy/Dx
-  Limit = K*BulletPos:x() + M
+      Diff = EndPos:x() - Dx
+      Cor = toRad(Diff*Increase)
+      Cth += Theta + Cor
+      Cv0 = vec2(Mv0*cos(Cth), Mv0*sin(Cth))
 
-  TargetRange = GunPos:distance(HitPos)
-  Angle = (HitPos - GunPos):toAngle()
-  Pitch = Angle:pitch()
+      Limit = Lk*Pos:x() + M
+      if (Pos:y() < Limit){
+        EndPos = Pos
+        Rk4 = array(vec2(0, 0), Cv0)
+        Run = 1
+        Hit = 0
+      }
+      if (Diff < Tolerance) {
+        Run = 0
+        Hit = 1
+      }
+    }
+  }
+
+  Pitch = clamp(toDeg(Cth), -45, 45)
   Yaw = Angle:yaw()
 
-  Gun:setAng(ang(Pitch + Correct, Yaw, 0))
-}
-
-if (changed(!Hit) & !Hit) {
-  EndPos = vec2(0, 0)
-}
-
-if (Solve & !Hit) {
-  while ((EndPos:x() < TargetRange) & perf()) {
-    P = (EndPos:x() - TargetRange)*ToM*0.01
-    I = clamp(I + P*TickInterval, -30, 30)
-    D = ($P)/TickInterval
-    Cv = clamp(Kp*P + Ki*I + Kd*D, 0, 45)
-
-    Correct = Cv
-    Theta = (Pitch + Correct)*(Pi/180)
-    V0 = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
-
-    while (BulletPos:y() > Limit) {
-      Kv = V0:length()*DragCoef
-      Vel1 = V0
-      Acc1 = Gravity -Kv*Vel1
-
-      Vel2 = Vel1 + Acc1*Dt/2
-      Acc2 = Gravity - Kv*Vel2
-      Vel3 = Vel1 + Acc2*Dt/2
-      Acc3 = Gravity - Kv*Vel3
-
-      Vel4 = Vel1 + Acc3*Dt
-      Acc4 = Gravity - Kv*Vel4
-
-      BulletPos += (Dt/6)*(Vel1 + 2*(Vel2 + Vel3) + Vel4)
-      BulletAcc += (Dt/6)*(Acc1 + 2*(Acc2 + Acc3) + Acc4)
-      EndPos = BulletPos
-    }
-    BulletPos = vec2(0, 0)
-    BulletAcc = V0
-  }
-  if ((EndPos:x() > TargetRange) & (EndPos:y() < Dy)) {
-    Hit = 1
-  }
-  else {
-    Hit = 0
-  }
+  Gun:setAng(ang(Cth, Yaw, 0))
 }
 
   CpuOps = array(cpuUsage()*10^6, ops())
