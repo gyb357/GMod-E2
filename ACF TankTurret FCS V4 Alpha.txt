@@ -1,13 +1,13 @@
-@name ACF TankTurret FCS V4 Alpha 0.3
-@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number
-@outputs [CpuOps]:array [EndPos]:vector2 [Lk Pitch Cth]:number
-@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM Dt M Tolerance Increase]:number
+@name ACF TankTurret FCS V4 Alpha 0.4
+@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number [Reset]:number
+@outputs [CpuOps]:array [EndPos]:vector2 [Lk Dth Cth Cpi Pitch Calc]:number
+@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM ToMs ToRad ToDeg Dt M Tolerance Increase]:number
 
-@persist [Mass K Mv0]:number
+@persist [Mass K Mv0 Dx Dy Lk Angle Theta]:number
 
-@persist [Rk4]:array [Pos EndPos Cv0]:vector2 [Hit Run Cor Cth]:number
+@persist [Rk4]:array [Pos Vel EndPos]:vector2 [Run Hit Diff Dth Cth Cpi]:number
 
-interval(50)
+interval(1)
 
 if (first() | dupefinished()) {
   Gravity = vec2(0, -gravity())
@@ -15,12 +15,17 @@ if (first() | dupefinished()) {
   Pi = pi()
   Caliber = Gun:acfCaliber()
   DragDiv = acfDragDiv()
-  ToM = 39.37
 
-  Dt = 0.01
-  M  = -10
-  Tolerance = 10
-  Increase = 0.0001
+  ToM = 0.01905
+  ToMs = 39.37
+  ToRad = (Pi/180)
+  ToDeg = (180/Pi)
+
+  Dt = 1
+  M  = -50
+
+  Tolerance = 5
+  Increase = 0.001
 
   function array rk4(Comp:array, K, Dt) {
     P1 = Comp[1, vector2]
@@ -45,64 +50,82 @@ if (first() | dupefinished()) {
 }
 
   Active = Pod["Active", number]
+
 if (changed(Active) & Active) {
   Driver = Pod["Driver", entity]
   Cam["Position", vector] = Driver:pos() + vec(0, 0, 50)
-  Cam["Distacne", number] = 100
-
-  Mass = Gun:acfProjectileMass()
-  K    = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
-  Mv0  = Gun:acfMuzzleVel()*ToM
+  Cam["Distacne", number] = 50
 }
+
+if (Reset) {Run = Hit = Calc = Pitch = 0}
 
 if (Active) {
   HitPos = Cam["HitPos", vector]
-  GunPos = Gun:massCenter()
-  Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
-  Dy = (HitPos:z() - GunPos:z())
-  Lk = (Dy/Dx)
+  GunPos = Gun:massCenter() # attachmentPos("muzzle")
+  
+  if (Solve & !Run & !Hit & !Calc) {
+    Mass = Gun:acfProjectileMass()
+    K    = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
+    Mv0  = Gun:acfMuzzleVel()*ToMs
 
-  Angle = (HitPos - GunPos):toAngle()
-  Theta = toRad(Angle:pitch())
+    Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
+    Dy = (HitPos:z() - GunPos:z())
+    Lk = (Dy/Dx)
 
-  if (!Solve) {
-    V0  = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
-    Rk4 = array(vec2(0, 0), V0)
-    Hit = Run = 0
-  }
-  if (Solve & !Run) {
+    Angle = (HitPos - GunPos):toAngle()
+    Theta = Angle:pitch()*ToRad
+
+    Pos = vec2(0, 0)
+    Vel = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
+    Rk4 = array(Pos, Vel)
+
     Run = 1
+    Hit = 0
   }
+}
 
-  if (Solve & Run) {
-    while (perf() & !Hit) {
-      Rk4 = rk4(Rk4, K, Dt)
-      Pos = Rk4[1, vector2]
-      Vel = Rk4[2, vector2]
+if (Run) {
+  while (perf() & !Hit) {
+    Rk4 = rk4(Rk4, K, Dt)
+    Pos = Rk4[1, vector2]
+    Vel = Rk4[2, vector2]
 
-      Diff = EndPos:x() - Dx
-      Cor = toRad(Diff*Increase)
-      Cth += Theta + Cor
-      Cv0 = vec2(Mv0*cos(Cth), Mv0*sin(Cth))
+    Limit = Lk*Pos:x() + M # y = fx + m
+    if ((Pos:x() > Dx) | (Pos:y() < Limit)) {
+      EndPos = Pos
 
-      Limit = Lk*Pos:x() + M
-      if (Pos:y() < Limit){
-        EndPos = Pos
-        Rk4 = array(vec2(0, 0), Cv0)
-        Run = 1
-        Hit = 0
-      }
-      if (Diff < Tolerance) {
-        Run = 0
-        Hit = 1
-      }
+      DiffX = (Dx - EndPos:x())*ToM
+      DiffY = (Dy - EndPos:y())*ToM
+
+      Diff = (DiffX + DiffY)*Increase
+      Dth += Diff*ToRad
+      Cth = Theta + Dth
+
+      Pos = vec2(0, 0)
+      Vel = vec2(Mv0*cos(Cth), Mv0*sin(Cth))
+
+      Rk4 = array(Pos, Vel)
+    }
+
+    if (abs(DiffX) + abs(DiffY) < abs(Tolerance)) {
+      Run = 0
+      Hit = 1
+      Calc = 1
+      Cpi = Cth*ToDeg
+      hint("Calculate Complete", 5)
+    }
+
+    if (Cpi > 90 | Cpi < -90) {
+      hint("Can't Calculate", 5)
+      Run = 0
+      Hit = 0
+      Calc = 1
     }
   }
-
-  Pitch = clamp(toDeg(Cth), -45, 45)
-  Yaw = Angle:yaw()
-
-  Gun:setAng(ang(Cth, Yaw, 0))
 }
+
+  Pitch = clamp(Cpi, -45, 45)
+  Yaw = Angle:yaw()
+  Gun:setAng(ang(Pitch, Yaw, 0))
 
   CpuOps = array(cpuUsage()*10^6, ops())
