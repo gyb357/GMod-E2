@@ -1,9 +1,9 @@
-@name ACF TankTurret FCS V4 Alpha 0.4
+@name ACF TankTurret FCS V4 Alpha 0.5
 @inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number [Reset]:number
-@outputs [CpuOps]:array [EndPos]:vector2 [Lk Dth Cth Cpi Pitch Calc]:number
+@outputs [CpuOps]:array [EndPos]:vector2 [Run Hit Calc Cpi Pitch]:number
 @persist [Gravity]:vector2 [Pi Caliber DragDiv ToM ToMs ToRad ToDeg Dt M Tolerance Increase]:number
 
-@persist [Mass K Mv0 Dx Dy Lk Angle Theta]:number
+@persist [Mass Ck Mv0 Dx Dy Dk Theta]:number [Angle]:angle
 
 @persist [Rk4]:array [Pos Vel EndPos]:vector2 [Run Hit Diff Dth Cth Cpi]:number
 
@@ -27,21 +27,21 @@ if (first() | dupefinished()) {
   Tolerance = 5
   Increase = 0.001
 
-  function array rk4(Comp:array, K, Dt) {
+  function array rk4(Comp:array, Ck, Dt) {
     P1 = Comp[1, vector2]
     V1 = Comp[2, vector2]
 
-    Kv = V1:length()*K
+    Vk = V1:length()*Ck
 
-    A1 = Gravity -Kv*V1
+    A1 = Gravity -Vk*V1
 
     V2 = V1 + A1*Dt/2
-    A2 = Gravity - Kv*V2
+    A2 = Gravity - Vk*V2
     V3 = V1 + A2*Dt/2
-    A3 = Gravity - Kv*V3
+    A3 = Gravity - Vk*V3
 
     V4 = V1 + A3*Dt
-    A4 = Gravity - Kv*V4
+    A4 = Gravity - Vk*V4
 
     Xf = P1 + (Dt/6)*(V1 + 2*(V2 + V3) + V4)
     Vf = V1 + (Dt/6)*(A1 + 2*(A2 + A3) + A4)
@@ -50,29 +50,29 @@ if (first() | dupefinished()) {
 }
 
   Active = Pod["Active", number]
-
 if (changed(Active) & Active) {
   Driver = Pod["Driver", entity]
-  Cam["Position", vector] = Driver:pos() + vec(0, 0, 50)
-  Cam["Distacne", number] = 50
+  Cam["Position", vector] = Driver:pos() + vec(0, 0, 100)
+  Cam["Distance", number] = 100
 }
 
-if (Reset) {Run = Hit = Calc = Pitch = 0}
+if (Reset) {Run = Hit = Calc = Pitch = Cth = 0}
 
 if (Active) {
   HitPos = Cam["HitPos", vector]
   GunPos = Gun:massCenter() # attachmentPos("muzzle")
+
+  Angle = (HitPos - GunPos):toAngle()
   
   if (Solve & !Run & !Hit & !Calc) {
     Mass = Gun:acfProjectileMass()
-    K    = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
+    Ck   = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
     Mv0  = Gun:acfMuzzleVel()*ToMs
 
     Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
     Dy = (HitPos:z() - GunPos:z())
-    Lk = (Dy/Dx)
+    Dk = (Dy/Dx)
 
-    Angle = (HitPos - GunPos):toAngle()
     Theta = Angle:pitch()*ToRad
 
     Pos = vec2(0, 0)
@@ -86,11 +86,11 @@ if (Active) {
 
 if (Run) {
   while (perf() & !Hit) {
-    Rk4 = rk4(Rk4, K, Dt)
+    Rk4 = rk4(Rk4, Ck, Dt)
     Pos = Rk4[1, vector2]
     Vel = Rk4[2, vector2]
 
-    Limit = Lk*Pos:x() + M # y = fx + m
+    Limit = Dk*Pos:x() + M # y = fx + m
     if ((Pos:x() > Dx) | (Pos:y() < Limit)) {
       EndPos = Pos
 
@@ -116,10 +116,11 @@ if (Run) {
     }
 
     if (Cpi > 90 | Cpi < -90) {
-      hint("Can't Calculate", 5)
       Run = 0
       Hit = 0
       Calc = 1
+      Cpi = 0
+      hint("Can't Calculate", 5)
     }
   }
 }
