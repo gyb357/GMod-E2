@@ -1,7 +1,7 @@
 @name ACF TankTurret FCS V4 Alpha 0.5
 @inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number [Reset]:number
 @outputs [CpuOps]:array [EndPos]:vector2 [Run Hit Calc Cpi Pitch]:number
-@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM ToMs ToRad ToDeg Dt M Tolerance Increase]:number
+@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM ToMs ToRad ToDeg Dt M Tolerance Increase DiffClamp]:number
 
 @persist [Mass Ck Mv0 Dx Dy Dk Theta]:number [Angle]:angle
 
@@ -21,11 +21,12 @@ if (first() | dupefinished()) {
   ToRad = (Pi/180)
   ToDeg = (180/Pi)
 
-  Dt = 1
-  M  = -50
+  Dt = 0.1
+  M  = -10
 
   Tolerance = 5
-  Increase = 0.001
+  Increase = 0.01
+  DiffClamp = 1
 
   function array rk4(Comp:array, Ck, Dt) {
     P1 = Comp[1, vector2]
@@ -47,6 +48,8 @@ if (first() | dupefinished()) {
     Vf = V1 + (Dt/6)*(A1 + 2*(A2 + A3) + A4)
     return array(Xf, Vf)
   }
+
+  holoCreate(1)
 }
 
   Active = Pod["Active", number]
@@ -61,6 +64,8 @@ if (Reset) {Run = Hit = Calc = Pitch = Cth = 0}
 if (Active) {
   HitPos = Cam["HitPos", vector]
   GunPos = Gun:massCenter() # attachmentPos("muzzle")
+
+  holoPos(1, HitPos)
 
   Angle = (HitPos - GunPos):toAngle()
   
@@ -97,7 +102,7 @@ if (Run) {
       DiffX = (Dx - EndPos:x())*ToM
       DiffY = (Dy - EndPos:y())*ToM
 
-      Diff = (DiffX + DiffY)*Increase
+      Diff = clamp((DiffX + DiffY)*Increase, -DiffClamp, DiffClamp)
       Dth += Diff*ToRad
       Cth = Theta + Dth
 
