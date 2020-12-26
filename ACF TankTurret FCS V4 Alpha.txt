@@ -1,48 +1,41 @@
-@name ACF TankTurret FCS V4 Alpha 0.6
-@inputs  [Pod Cam]:wirelink [Gun]:entity [Solve]:number [Reset]:number
-@outputs [CpuOps]:array [EndPos]:vector2 [Dx Dy Dk DiffX DiffY Run Hit Calc Cpi]:number
-@persist [Gravity]:vector2 [Pi Caliber DragDiv ToM ToMs ToRad ToDeg Dt M Tolerance Increase DiffClamp]:number
-
-@persist [Mass Ck Mv0 Dx Dy Dk Pitch Yaw Theta]:number [Angle]:angle
-
-@persist [Rk4]:array [Pos Vel EndPos]:vector2 [Run Hit Diff Dth Cth Cpi]:number
+@name ACF TankTurret FCS V4 Alpha 0.7
+@inptus  [Pod Cam]:wirelink [Gun]:entity [Mod]:number
+@outputs [CpuOps]:array [Th Cor]:number
+@persist [PG]:vector [G Pi Caliber DragDiv ToMs Optimal Dt Increase Tolerance]:number
+@persist [Rk4]:array [Pos Vel EndPos]:vector
 
 interval(1)
 
 if (first() | dupefinished()) {
-  Gravity = vec2(0, -gravity())
-
+  PG = propGravity()
+  G = gravity()
   Pi = pi()
+
   Caliber = Gun:acfCaliber()
-  DragDiv = 39.97 #acfDragDiv()
+  DragDiv = acfDragDiv()
 
-  ToM = 0.01905
   ToMs = 39.37
-  ToRad = (Pi/180)
-  ToDeg = (180/Pi)
 
+  Optimal = 0
   Dt = 1
-  M  = -10
+  Increase = 1
+  Tolerance = 0.01
 
-  Tolerance = 1
-  Increase = 0.01
-  DiffClamp = 1
+  function array rk4(Comp:array, Coef, Dt) {
+    P1 = Comp[1, vector]
+    V1 = Comp[2, vector]
 
-  function array rk4(Comp:array, Ck, Dt) {
-    P1 = Comp[1, vector2]
-    V1 = Comp[2, vector2]
+    Vk = V1:length()*Coef
 
-    Vk = V1:length()*Ck
-
-    A1 = Gravity - Vk*V1
+    A1 = PG - Vk*V1
 
     V2 = V1 + A1*Dt/2
-    A2 = Gravity - Vk*V2
+    A2 = PG - Vk*V2
     V3 = V1 + A2*Dt/2
-    A3 = Gravity - Vk*V3
+    A3 = PG - Vk*V3
 
     V4 = V1 + A3*Dt
-    A4 = Gravity - Vk*V4
+    A4 = PG - Vk*V4
 
     Xf = P1 + (Dt/6)*(V1 + 2*(V2 + V3) + V4)
     Vf = V1 + (Dt/6)*(A1 + 2*(A2 + A3) + A4)
@@ -59,76 +52,59 @@ if (changed(Active) & Active) {
   Cam["Distance", number] = 100
 }
 
-if (Reset) {Run = Hit = Calc = Cpi = 0}
-
 if (Active) {
-  HitPos = Cam["HitPos", vector]
-  GunPos = Gun:massCenter() # attachmentPos("muzzle")
+  Sign = Mod ? 1 : -1
 
-  holoPos(1, HitPos)
+  HitPos = Cam["HitPos", vector]
+  GunPos = Gun:massCenter()
 
   Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
   Dy = HitPos:z() - GunPos:z()
   Dk = Dy/Dx
 
-  if (Solve & !Run & !Hit & !Calc) {
-    Mass = Gun:acfProjectileMass()
-    Ck   = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
-    Mv0  = Gun:acfMuzzleVel()*ToMs
+  Mv0 = Gun:acfMuzzleVel()*ToMs
+  Th = atan((Mv0^2 + Sign*sqrt(Mv0^4 - G*(G*Dx^2 + 2*Dy*Mv0^2)))/(G*Dx))
 
-    Theta = Pitch*ToRad
-
-    Pos = vec2(0, 0)
-    Vel = vec2(Mv0*cos(Theta), Mv0*sin(Theta))
-    Rk4 = array(Pos, Vel)
-
-    Run = 1
-    Hit = 0
-  }
-}
-
-if (Run) {
-  while (perf() & !Hit) {
-    Rk4 = rk4(Rk4, Ck, Dt)
-    Pos = Rk4[1, vector2]
-    Vel = Rk4[2, vector2]
-
-    Limit = Dk*Pos:x() + M
-    if ((Pos:x() > Dx) | (Pos:y() < Limit)) {
-      EndPos = Pos
-
-      DiffX = 0#(Dx - EndPos:x())*ToM
-      DiffY = (Dy - EndPos:y())*ToM
-
-      Diff = clamp((DiffX + DiffY)*Increase, -DiffClamp, DiffClamp)
-      Dth += Diff*ToRad
-      Cth = Theta + Dth
-      Cpi = Cth*ToDeg
-
-      Pos = vec2(0, 0)
-      Vel = vec2(Mv0*cos(Cth), Mv0*sin(Cth))
-
-      Rk4 = array(Pos, Vel)
-    }
-
-    if (abs(DiffY) < Tolerance) {
-      Run = 0, Hit = 1, Calc = 1, Dth = 0
-      hint("Calculate Complete", 5)
-    }
-
-    if (Cpi > 90 | Cpi < -90) {
-      Run = 0, Hit = 0, Calc = 1, Dth = 0
-      hint("Can't Calculate", 5)
-    }
-  }
-}
+  Mass = Gun:acfProjectileMass()
+  Coef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
 
   Angle = (HitPos - GunPos):toAngle()
-  Pitch = Angle:pitch()
-  Yaw = Angle:yaw()
+  ThDir = (Angle:setPitch(Th)):forward()
 
-  Correct = clamp(Pitch + Cpi, -45, 45)
+  Diff = HitPos:dot(EndPos)
+  if (abs(Diff) < Tolerance) {Run = 0}
+    else {Run = 1}
+  #if (changed(Run == 1) & Run == 1) {Cor = 0}
 
-  Gun:setAng(ang(Correct, Yaw, 0))
+  if (!Run) {
+    Pos = GunPos
+    Vel = Mv0*ThDir
+    Rk4 = array(Pos, Vel)
+  }
+
+  while (Run & perf()) {
+    Rk4 = rk4(Rk4, Coef, Dt)
+    Pos = Rk4[1, vector]
+    Vel = Rk4[2, vector]
+
+    PosXY = sqrt(Pos:x()^2 + Pos:y()^2)
+    Limit = Dk*PosXY
+
+    if ((PosXY > Dx) | (Pos:z() < Limit)) {
+      EndPos = Pos
+
+      Cor += Diff*Increase
+      CorTh = Th + Cor
+      RkDir = (Angle:setPitch(CorTh)):forward()
+
+      Pos = GunPos
+      Vel = Mv0*RkDir
+      Rk4 = array(Pos, Vel)
+    }
+  }
+}
+
+  holoPos(1, EndPos)
+  Gun:setAng(Angle:setPitch(Th + Cor))
 
   CpuOps = array(cpuUsage()*10^6, ops())
