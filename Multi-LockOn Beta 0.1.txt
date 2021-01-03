@@ -61,9 +61,9 @@ if (Active) {
   }
   if (~FindEnt) {
     if (CText == "parentbase") {
-      TEnt = findEntity(APos, ADir):findParentBase()
+      TEnt = findEntity(VPos, VDir):findParentBase()
     }
-    else {TEnt = findEntity(APos, ADir)}
+    else {TEnt = findEntity(VPos, VDir)}
 
     if (!TEnt) {TEnt = noentiy()}
     TargetArr:setEntity(Index, TEnt)
