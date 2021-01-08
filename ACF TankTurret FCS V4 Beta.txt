@@ -1,131 +1,232 @@
-@name ACF TankTurret FCS V4 Beta 0.1
-@inputs  [Pod Cam]:wirelink [Gun]:entity [LockOn Auto TIdxUp TIdxDown ChangeClass]:number
-@outputs [Target]:entity [TargetArr]:array [CText Class]:string
-@persist [TargetMax ExcludeOwn Range Degree]:number
-@persist [Own]:entity [ClassArr]:array [ClassCount]:number
 
-@persist [G Pi]:number [Gv]:vector [Caliber DragDiv Dt]:number
+@name ACF Tank Turret FCS V4 Beta 0.1
+@inputs  [Pod Cam]:wirelink [Base TurretGate Gun]:entity
+@inputs  [ChangeCamPos ZoomIn ChangeClass TIdxUp TIdxDown FindEnt LockOn ToT]:number
+@outputs [OpsCpu]:array [CText Target]:string [FOV]:number
 
-@persist [CIndex TIndex DragCoef]:number [AimPos AimDir]:vector
+@persist [Elevation Depression YawClamp CamOffset CamDist ZoomCount MagnificMax FCSMod HoldMod SetTurret]:number
+@persist [Gv]:vector [G Pi Caliber DragDiv Dt]:number
+@persist [ToRad RotateYaw Magnific]:number
+@persist [Own]:entity [ClassArr]:array [ClassCount ExcludeOwn Range Degree]:number
+@persist [TickRate TickInterval]:number
+
+@persost [CamMod Zoom]:number
+@persist [CamPos, CamDir]:vector [TargetArr]:array [CIndex TIndex Lock]:number
+@persist [TPos VoT VoTln VoTnm T B K H Predict]:vector [VoTln InV Idrg]:number
+@persist [Rk4]:array [BPos BVel BEndPos]:vector [DragCoef]:number
+
+interval(50)
 
 if (first() | dupefinished()) {
-  Mbt = 1
-  Spa = 0
+# ----- Option setting ----- #
+  Elevation  = 20
+  Depression = 10
+  YawClamp = 360
 
+  CamOffset = 100
+  CamDist = 300
 
-  TargetMax = 8
-  ExcludeOwn = 1
-  Range = 50000
-  Degree = 10
-  
-  Own = owner()
-  ClassArr = array("player", "prop_physics", "acf_ammo", "parentbase")
-  ClassCount = ClassArr:count()
+  ZoomCount = 1
+  MagnificMax = 80
 
-  G = gravity()
-  Pi = pi()
-  Gv = vec(0, 0, -G)
+  FCSMod = 1
+  # 0 = notting 
+  # 1 = direct ballistics, lockon
+  # 2 = anti-air ballistics lockon
+  # 3 = artillery ballistics, tot
+  HoldMod = 1
+  # 1 = hold gun
+  # 2 = rotate at the same angles as the base
+  # 3 = rotate to last aim position
 
-  Caliber = Gun:acfCaliber()
-  DragDiv = acfDragDiv()
+  SetTurret = 1
 
-  Dt = 1
+# ----- Constraints ----- #
+    Gv = propGravity()
+    G = gravity()
+    Pi = pi()
+    Caliber = Gun:acfCaliber()
+    DragDiv = acfDragDiv()
+    Dt = 1
+
+    ToRad = 180/Pi
+    RotateYaw = YawClamp/2
+    Magnific = (MagnificMax/ZoomCount)
+
+    Own = owner()
+    ClassArr = array("player", "prop_physics", "acf_ammo", "base_parent")
+    ClassCount = ClassArr:count()
+    ExcludeOwn = 1
+    Range = 50000
+    Degree = 10
+
+    TickRate = 66
+    TickInterval = tickInterval()
 
   function void setClass() {
-    CIndex += (CIndex == ClassCount) ? -CIndex+1 : 1
+    CIndex += (CIndex > ClassCount) ? -CIndex+1 : 1
     CText = ClassArr[CIndex, string]
-
-    if (CText == "parentbase") {
-      Class = "prop_physics"
-    }
-    else {Class = CText}
+    Class = (CText == "base_parent") ? "*" : CText
     findClearWhiteList(), findIncludeClass(Class)
   }
 
   function entity findEntity() {
     if (ExcludeOwn) {findExcludePlayer(Own), findExcludePlayerProps(Own)}
-    findInCone(AimPos, AimDir, Range, Degree)
-    findSortByDistance(AimPos)
+    findInCone(CamPos, CamDir, Range, Degree)
+    findSortByDistance(CamPos)
     return findToArray()
   }
 
   function entity entity:findParentBase() {
-    Ent = This, Find = 1
+    PEnt = This, Find = 1
     while (Find & perf()) {
-      if (Ent:parent()) {
-        Ent = Ent:parent()
-        if (!Ent:parnet()) {ParentBase = Ent, Find = 0}
+      if (PEnt:parent()) {
+        PEnt = PEnt:parent()
+        if (!PEnt:parent()) {ParentBase = PEnt, Find = 0}
       }
-      else {ParentBase = Ent, Find = 0}
+      else {ParentBase = PEnt, Find = 0}
     }
     return ParentBase
   }
 
-  for (I = 1, TargetMax) {TargetArr[I, entity] = noentity()}
-  CIndex = 1
-  TIndex = 1
-
-  function array rk4(Comp:array, Dt) {
+  function array rk4(Comp:array, Dt:number) {
     P1 = Comp[1, vector], V1 = Comp[2, vector]
-    Drag = V1:length()*DragCoef
-    A1 = Gv - Drag*V1
-
-    V2 = V1 + A1*Dt/2, A2 = Gv - Drag*V2
-    V3 = V1 + A1*Dt/2, A3 = Gv - Drag*V3
-    V4 = V1 + A3*Dt, A4 = Gv - Drag*V4
+    Kv = V1:length()*DragCoef
+    
+    A1 = Gv - Kv*V1
+    V2 = V1 + A1*Dt/2, A2 = Gv - Kv*V2
+    V3 = V1 + A1*Dt/2, A3 = Gv - Kv*V3
+    V4 = V1 + A3*Dt,   A4 = Gv - Kv*V4
     Xf = (Dt/6)*(V1 + 2*(V2 + V3) + V4)
     Vf = (Dt/6)*(A1 + 2*(A2 + A3) + A4)
     return array(Xf, Vf)
   }
+
+  function void setTurretBase() {
+    if (SetTurret) {
+      Gun:deParent(), TurretGate:deParent()
+      Gun:parentTo(TurretGate), TurretGate:parentTo(Base)
+    }
+    else {Gun:deParent(), TurretGate:deParent()}
+  }
+
+  for (I = 1, 8) {TargetArr[I, entity] = noentity()}
+  CIndex = TIndex = 1
+  rangerFilter(Gun)
+  rangerpersist(1)
+  setTurretBase()
 }
 
-Active = Pod["Active", number]
-if (~Active) {
+  Active = Pod["Active", number]
+if (changed(Active)) {
   Chair = Pod["Entity", entity]
   Driver = Pod["Driver", entity]
 }
 
 if (Active) {
-  AimPos = Cam["CamPos", vector]
-  AimDir = Cam["CamDir", vector]
+  if (~ChangeCamPos & ChangeCamPos) {CamMod = !CamMod}
+  if (changed(CamMod) & CamMod) {Cam["Parent", entity] = Base}
+
+  Cam["CamPosition", vector] = Base:pos() + vec(0, 0, CamOffset)*CamMod
+  Cam["CamDistance", number] = CamDist*CamMod
+
+
+  if (~ZoomIn & Zoom) {Zoom += Zoom > ZoomCount-1 ? -ZoomCount : 1}
+  FOV = 90 - Zoom*Magnific
+  Cam["FOV", number] = FOV
+
+  
+  if (FCSMod == 1 | FCSMod == 2) {
+    if (~ChangeClass & ChangeClass) {setClass()}
+    if (~TIdxUp | ~TIdxDown) {
+      TIndex += TIdxUp-TIdxDown
+      TIndex = clamp(TIndex, 1, 8)
+    }
+    if (~FindEnt & FindEnt) {
+      CamPos = Cam["CamPos", vector]
+      CamDir = Cam["CamDir", vector]
+
+      TEnt = (CText == "base_parent") | FCSMod == 2 ? findEntity():findParentBase() : findEntity()
+      if (!TEnt) {TEnt = noentity()}
+      TargetArr:setEntity(TIndex, TEnt)
+    }
+    if (changed(TIndex) | changed(TEnt)) {Target = TargetArr[TIndex, entity]}
+    if (~LockOn & LockOn) {Lock = !Lock}
+  }
+
 
   EyeAng = Chair:toLocal(Driver:eyeAngles())
   Ranger = rangerOffset(Range, CamPosition, EyeAngle:forward())
-  RangerEnt = Ranger:entity()
+  TAng = (TPos - GPos):toAngle()
 
 
+  if (FCSMod != 0) {
+    TPos = (Target & Lock) ? Target:pos() : Ranger:pos()
+    GPos = Gun:attachmentPos("muzzle")
 
-  if (~ChangeClass) {setClass()}
-  if (~TIdxUp | ~TIdxDown) {
-    TIndex += TIdxUp-TIdxDown
-    TIndex = clamp(TIndex, 1, TargetMax)
+    AmmoType = Gun:acfAmmoType()
+    if (changed(AmmoType)) {Mv = Gun:acfMuzzleVel()*39.37}
+
+    Dx = sqrt((TPos:x() - GPos:x())^2 + (TPos:y() - GPos:y())^2)
+    Dy = TPos:z() - GPos:z()
+    Th = atan((Mv^2 + sqrt(Mv^4 - G*(G*Dx^2 + 2*Dy*Mv^2)))/(G*Dx))
+    ToF = Dx/(Mv*cos(Th))
   }
-  if (~LockOn & LockOn & RangerEnt) {
-    if (CText == "parentbase") {
-      TEnt = findEntity():findParentBase()
+
+
+  if (FCSMod == 1 | FCSMod == 2) {
+    VoT = (!VoT & Target:parent()) ? (VoT = $TPos*TickRate) : Target:vel()
+    if (FCSMpd == 1) {Predict = VoT*ToF + (0.5*$VoT*ToF^2)}
+    if (FCSMod == 2) {
+      VoTln = VoT:length()
+      VoTnm = VoT:normalized()
+
+      T = $VoTnm
+      B = Dth:normalized()
+      K = abs(T:length()/VoTln)
+      H = B:cross(T):normalized()
+      InV = (B/K):length()
+
+      Idgr = ((VoTln*ToF)/Inv)*ToRad
+      Predict = (abs(Idgr) > 0.1) ? ((-B):rotateAroundAxis(H, -(Idgr))/K) : (VoT*ToF + (0.5*$VoT*ToF^2))
     }
-    else {TEnt = findEntity()}
-
-    if (!TEnt) {TEnt = noentiy()}
-    TargetArr:setEntity(Index, TEnt)
   }
-  if (~TIndex | ~TEnt) {Target = TargetArr[TIndex, entity]}
 
 
-  if (~Gun:acfAmmoType()) {
-    Mv = Gun:acfMuzzleVel()*39.37
+  if (FCSMod == 3) {
+
     Mass = Gun:acfProjectileMass()
     DragCoef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
+    
+    ThDir = (TAng:setPitch(Th)):forward()
+    if (!Optimal) {
+      Dk = Dy/Dx
+      BPos = GPos
+      BVel = Mv*ThDir
+      Rk4 = array(BPos, BVel)
+    }
+    while (Optimal & perf()) {
+      Rk4 = rk4(Rk4, Dt)
+      BPos = Rk4[1, vector]
+      BVel = Rk4[2, vector]
+      BPosXY = sqrt((GPos:x() - BPos:x())^2 + (GPos:y() - BPos:y())^2)
+      if (BPosXY > Dx) | BPos:y() < Dk*BPosXY | ) {
+        EndBPos = BPos
+
+        Cor += 
+        RkDir = 
+
+        BPos = GPos
+        BVel = Mv*RkDir
+        Rk4 = array(BPos, BVel)
+      }
+    }
+
+    if (~ToT & ToT) {
+      ToTData = 
+
   }
 
-  TPos = (Target & Auto) ? (Target:isPlayer() ? Target:pos()+vec(0, 0, 35) : TargeT:massCenter()) : Ranger:pos()
-  GPos = Gun:attachmentPos("muzzle")
-
-  Dx = sqrt((TPos:x() - GPos:x())^2 + (TPos:y() - GPos:y())^2)
-  Dy = TPos:z() - GPos:z()
-  Dk = Dy/Dx
-  TangentTh = atan((Mv^2 + sqrt(Mv^4 - G*(G*Dx^2 + 2*Dy*Mv^2)))/(G*Dx))
-
-  
-
 }
+
+  OpsCpu = array(ops(), cpuUsage()*10^6)
