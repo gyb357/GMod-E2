@@ -1,110 +1,161 @@
-@name ACF TankTurret FCS V4 Alpha 0.7
-@inptus  [Pod Cam]:wirelink [Gun]:entity [Mod]:number
-@outputs [CpuOps]:array [Th Cor]:number
-@persist [PG]:vector [G Pi Caliber DragDiv ToMs Optimal Dt Increase Tolerance]:number
-@persist [Rk4]:array [Pos Vel EndPos]:vector
+@name ACF Tank Turret V4 Alpha 0.9
+@inputs  [Pod Cam]:wirelink [Base Gun TurretGate]:entity [ChangeCam Zoom Trig Hold]:number
+@outputs [OpsCpu]:array [Th RkTh Solve]:number
+@persist [Elevation Depression RotateSpeed YawClamp CamOffset CamDistance ZoomCount MagnificMax Tolerance Increase Kp Ki Kd Kdt Rdt RK4]:number [RotateSound]:string
+@persist [Gv]:vector2 [G Pi Tick Caliber DragDiv Range RotateYaw Magnific]:number
 
-interval(1)
+@persist [CamMod Zoom ZoomIndex]:number
+
+@persist [Rk4]:array [BPos BVel EndPos]:vector2 [P RkTh]:number
+@persist [Ranger]:ranger [Chair Driver]:entity
+
+interval(50)
 
 if (first() | dupefinished()) {
-  PG = propGravity()
-  G = gravity()
-  Pi = pi()
+  # ----- Option ----- #
+  Elevation   = 90
+  Depression  = 20
+  RotateSpeed = 10
+  YawClamp    = 360
 
-  Caliber = Gun:acfCaliber()
-  DragDiv = acfDragDiv()
+  CamOffset   = 100
+  CamDistance = 300
 
-  ToMs = 39.37
+  ZoomCount   = 1
+  MagnificMax = 80
 
-  Optimal = 0
-  Dt = 1
-  Increase = 1
-  Tolerance = 0.01
+  Tolerance = 1
+  Increase  = 1
 
-  function array rk4(Comp:array, Coef, Dt) {
-    P1 = Comp[1, vector]
-    V1 = Comp[2, vector]
+  Kp = 0.05
+  Kdt = 1
+  Rdt = 0.001
 
-    Vk = V1:length()*Coef
+  RK4 = 0
 
-    A1 = PG - Vk*V1
+  RotateSound = "acf_extra/tankfx/turret5.wav"
 
-    V2 = V1 + A1*Dt/2
-    A2 = PG - Vk*V2
-    V3 = V1 + A2*Dt/2
-    A3 = PG - Vk*V3
+  # ----- Constraints ----- #
+    Gv = vec2(0, -gravity())
+    G  = gravity()
+    Pi = pi()
 
-    V4 = V1 + A3*Dt
-    A4 = PG - Vk*V4
+    Tick = tickInterval()
 
+    Caliber = Gun:acfCaliber()
+    DragDiv = acfDragDiv()
+
+    Range     = 50000
+    RotateYaw = YawClamp/2
+    Magnific  = MagnificMax/ZoomCount
+
+  function array rk4(Comp:array, K, Dt) {
+    P1 = Comp[1, vector2], V1 = Comp[2, vector2]
+    Drag = V1:length()*K
+
+    A1 = Gv - Drag*V1
+    V2 = V1 + A1*Dt/2, A2 = Gv - Drag*V2
+    V3 = V1 + A2*Dt/2, A3 = Gv - Drag*V3
+    V4 = V1 + A3*Dt,   A4 = Gv - Drag*V4
     Xf = P1 + (Dt/6)*(V1 + 2*(V2 + V3) + V4)
     Vf = V1 + (Dt/6)*(A1 + 2*(A2 + A3) + A4)
     return array(Xf, Vf)
   }
 
-  holoCreate(1)
+  function setHoloTurret() {
+    holoCreate(1,Gun:pos())
+    holoCreate(2, TurretGate:pos())
+    holoParent(1, 2)
+    holoParent(2, Base)
+
+    Gun:deParent()
+    TurretGate:deParent()
+
+    Gun:parentTo(holoEntity(1))
+    TurretGate:parentTo(holoEntity(2))
+  }
+
+  rangerFilter(Gun)
+  rangerFilter(Base:getConstraints())
+  rangerPersist(1)
+  setHoloTurret()
 }
 
   Active = Pod["Active", number]
 if (changed(Active) & Active) {
+  Chair  = Pod["Entity", entity]
   Driver = Pod["Driver", entity]
-  Cam["Position", vector] = Driver:pos() + vec(0, 0, 100)
-  Cam["Distance", number] = 100
+
+  Cam["Parent", entity] = Base
 }
 
 if (Active) {
-  Sign = Mod ? 1 : -1
+  if (~ChangeCam & ChangeCam) {CamMod = !CamMod}
+  CamPosition = Base:pos() + vec(0, 0, CamOffset)
+  Cam["Position", vector] = CamPosition
+  Cam["Distance", number] = CamDistance*CamMod
 
-  HitPos = Cam["HitPos", vector]
-  GunPos = Gun:massCenter()
+  if (~Zoom & Zoom) {ZoomIndex += (ZoomIndex > ZoomCount) ? -ZoomCount : 1}
+  if (changed(ZoomIndex) & ZoomIndex) {Cam["FOV", number] = 90 - Magnific*ZoomIndex}
 
-  Dx = sqrt((HitPos:x() - GunPos:x())^2 + (HitPos:y() - GunPos:y())^2)
-  Dy = HitPos:z() - GunPos:z()
-  Dk = Dy/Dx
 
-  Mv0 = Gun:acfMuzzleVel()*ToMs
-  Th = atan((Mv0^2 + Sign*sqrt(Mv0^4 - G*(G*Dx^2 + 2*Dy*Mv0^2)))/(G*Dx))
+  EyeAng = Chair:toLocal(Driver:eyeAngles())
+  Ranger = rangerOffset(Range, CamPosition, EyeAng:forward())
 
-  Mass = Gun:acfProjectileMass()
-  Coef = (Pi*Caliber^2)/(4000000*Mass*DragDiv)
 
-  Angle = (HitPos - GunPos):toAngle()
-  ThDir = (Angle:setPitch(Th)):forward()
+  AmmoType = Gun:acfAmmoType()
 
-  Diff = HitPos:dot(EndPos)
-  if (abs(Diff) < Tolerance) {Run = 0}
-    else {Run = 1}
-  #if (changed(Run == 1) & Run == 1) {Cor = 0}
+  Mv = Gun:acfMuzzleVel()*39.37
+  M  = Gun:acfProjectileMass()
+  K  = (Pi*Caliber^2)/(4000000*M*DragDiv)
+  
+  TPos = Ranger:pos()
+  GPos = Gun:massCenter()
+  Sign = Trig ? 1 : -1
 
-  if (!Run) {
-    Pos = GunPos
-    Vel = Mv0*ThDir
-    Rk4 = array(Pos, Vel)
-  }
+  Dx  = sqrt((TPos:x() - GPos:x())^2 + (TPos:y() - GPos:y())^2)
+  Dy  = TPos:z() - GPos:z()
+  Dk  = Dy/Dx
+  Th  = atan((Mv^2 + Sign*sqrt(Mv^4 - G*(G*Dx^2 + 2*Dy*Mv^2)))/(G*Dx))
+  ToF = Dx/Mv*cos(Th)
 
-  while (Run & perf()) {
-    Rk4 = rk4(Rk4, Coef, Dt)
-    Pos = Rk4[1, vector]
-    Vel = Rk4[2, vector]
+  if (RK4) {
+    DiffDx = Dx - EndPos:x(), DiffDy = Dy - EndPos:y()
+    if (((abs(DiffDx) + abs(DiffDy))*0.01905 > Tolerance)) {Solve = 1}
+    if (!Solve) {
+      BPos = vec2(0, 0)
+      BVel = vec2(Mv*cos(CTh), Mv*sin(CTh))
+      Rk4  = array(BPos, BVel)
+    }
+    while (Solve) {
+      Rk4  = rk4(Rk4, K, Rdt)
+      BPos = Rk4[1, vector2]
+      BVel = Rk4[2, vector2]
+      if (BPos:x() > Dx | BPos:y() < Dk*BPos:x()) {
+        EndPos = BPos
+        P = (DiffDx + DiffDy)*0.01905
+        RkTh += (Kp*P)*(-Sign)*Increase
+        CTh = Th + RkTh
 
-    PosXY = sqrt(Pos:x()^2 + Pos:y()^2)
-    Limit = Dk*PosXY
-
-    if ((PosXY > Dx) | (Pos:z() < Limit)) {
-      EndPos = Pos
-
-      Cor += Diff*Increase
-      CorTh = Th + Cor
-      RkDir = (Angle:setPitch(CorTh)):forward()
-
-      Pos = GunPos
-      Vel = Mv0*RkDir
-      Rk4 = array(Pos, Vel)
+        BPos = vec2(0, 0)
+        BVel = vec2(Mv*cos(CTh), Mv*sin(CTh))
+        Rk4 = array(BPos, BVel)
+      }
+      if (CTh > 90 | CTh < -90 | ops() > 5000) {Solve = 0}
     }
   }
+  else {CTh = Th}
+
+  GunAng = (TPos - Gun:pos()):toAngle()
+
+  TAng = Hold ? Base:angles():setRoll(0) : GunAng:setPitch(CTh)
 }
 
-  holoPos(1, EndPos)
-  Gun:setAng(Angle:setPitch(Th + Cor))
+  Force = Gun:toWorld(clamp(Gun:toLocal(TAng), ang(-RotateSpeed), ang(RotateSpeed)))
+  Angle = clamp(Base:toLocal(Force), ang(-Elevation, -RotateYaw, -1), ang(Depression, RotateYaw, 1))
+  Local = Gun:toLocal(Base:toWorld(Angle))
 
-  CpuOps = array(cpuUsage()*10^6, ops())
+  holoAng(1, Local + Gun:forward():toAngle()*ang(1, 1, 0)) # Gun
+  holoAng(2, Base:toWorld(TAng*ang(0, 1, 0)))              # Turret
+
+  OpsCpu = array(ops(), cpuUsage()*10^6)
