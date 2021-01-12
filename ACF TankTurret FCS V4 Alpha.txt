@@ -1,15 +1,15 @@
-@name ACF Tank Turret V4 Alpha 0.9
+@name ACF Tank Turret V4 Alpha 1.1
 @inputs  [Pod Cam]:wirelink [Base Gun TurretGate]:entity [ChangeCam Zoom Trig Hold]:number
-@outputs [OpsCpu]:array [Th RkTh Solve]:number
-@persist [Elevation Depression RotateSpeed YawClamp CamOffset CamDistance ZoomCount MagnificMax Tolerance Increase Kp Ki Kd Kdt Rdt RK4]:number [RotateSound]:string
+@outputs [OpsCpu]:array [Th RkTh Cth Run Hit]:number
+@persist [Elevation Depression RotateSpeed YawClamp CamOffset CamDistance ZoomCount MagnificMax Tolerance Increase Rdt RK4]:number [RotateSound]:string
 @persist [Gv]:vector2 [G Pi Tick Caliber DragDiv Range RotateYaw Magnific]:number
 
 @persist [CamMod Zoom ZoomIndex]:number
 
-@persist [Rk4]:array [BPos BVel EndPos]:vector2 [P RkTh]:number
+@persist [Rk4]:array [EndPos]:vector2 [M K DiffXY P Th RkTh Cth Run Hit]:number
 @persist [Ranger]:ranger [Chair Driver]:entity
 
-interval(50)
+interval(1)
 
 if (first() | dupefinished()) {
   # ----- Option ----- #
@@ -27,9 +27,7 @@ if (first() | dupefinished()) {
   Tolerance = 1
   Increase  = 1
 
-  Kp = 0.05
-  Kdt = 1
-  Rdt = 0.001
+  Rdt = 0.05
 
   RK4 = 0
 
@@ -62,23 +60,35 @@ if (first() | dupefinished()) {
     return array(Xf, Vf)
   }
 
-  function setHoloTurret() {
-    holoCreate(1,Gun:pos())
-    holoCreate(2, TurretGate:pos())
-    holoParent(1, 2)
-    holoParent(2, Base)
+  function void runBody() {
+    Rk4  = rk4(Rk4, K, Rdt)
+    BPos = Rk4[1, vector2]
+    BVel = Rk4[2, vector2]
+    if (BPos:x() > Dx | BPos:y() < Dk*BPos:x()) {
+      EndPos = BPos
 
-    Gun:deParent()
-    TurretGate:deParent()
+      RkTh = ((  ( (Dx - EndPos:x()) + (Dy - EndPos:y()) )*0.01905)*Increase)*Sign
 
-    Gun:parentTo(holoEntity(1))
-    TurretGate:parentTo(holoEntity(2))
+      Rk4 = array(vec2(0, 0), vec2(Mv*cos(RkTh), Mv*sin(RkTh)))
+    }
   }
 
+  #
   rangerFilter(Gun)
   rangerFilter(Base:getConstraints())
   rangerPersist(1)
-  setHoloTurret()
+  
+  #
+  holoCreate(1,Gun:pos())
+  holoCreate(2, TurretGate:pos())
+  holoParent(1, 2)
+  holoParent(2, Base)
+
+  Gun:deParent()
+  TurretGate:deParent()
+
+  Gun:parentTo(holoEntity(1))
+  TurretGate:parentTo(holoEntity(2))
 }
 
   Active = Pod["Active", number]
@@ -98,16 +108,12 @@ if (Active) {
   if (~Zoom & Zoom) {ZoomIndex += (ZoomIndex > ZoomCount) ? -ZoomCount : 1}
   if (changed(ZoomIndex) & ZoomIndex) {Cam["FOV", number] = 90 - Magnific*ZoomIndex}
 
-
   EyeAng = Chair:toLocal(Driver:eyeAngles())
   Ranger = rangerOffset(Range, CamPosition, EyeAng:forward())
-
 
   AmmoType = Gun:acfAmmoType()
 
   Mv = Gun:acfMuzzleVel()*39.37
-  M  = Gun:acfProjectileMass()
-  K  = (Pi*Caliber^2)/(4000000*M*DragDiv)
   
   TPos = Ranger:pos()
   GPos = Gun:massCenter()
@@ -120,28 +126,21 @@ if (Active) {
   ToF = Dx/Mv*cos(Th)
 
   if (RK4) {
-    DiffDx = Dx - EndPos:x(), DiffDy = Dy - EndPos:y()
-    if (((abs(DiffDx) + abs(DiffDy))*0.01905 > Tolerance)) {Solve = 1}
-    if (!Solve) {
-      BPos = vec2(0, 0)
-      BVel = vec2(Mv*cos(CTh), Mv*sin(CTh))
-      Rk4  = array(BPos, BVel)
-    }
-    while (Solve) {
-      Rk4  = rk4(Rk4, K, Rdt)
-      BPos = Rk4[1, vector2]
-      BVel = Rk4[2, vector2]
-      if (BPos:x() > Dx | BPos:y() < Dk*BPos:x()) {
-        EndPos = BPos
-        P = (DiffDx + DiffDy)*0.01905
-        RkTh += (Kp*P)*(-Sign)*Increase
-        CTh = Th + RkTh
+    M = Gun:acfProjectileMass()
+    K = (Pi*Caliber^2)/(4000000*M*DragDiv)
+    
+    DiffXY = sqrt((Dx - EndPos:x())^2 + (Dy - EndPos:y())^2)
 
-        BPos = vec2(0, 0)
-        BVel = vec2(Mv*cos(CTh), Mv*sin(CTh))
-        Rk4 = array(BPos, BVel)
-      }
-      if (CTh > 90 | CTh < -90 | ops() > 5000) {Solve = 0}
+    Hit = (DiffXY*0.01905 < Tolerance) ? 1 : 0
+
+    while (perf() & Run) {runBody()}
+
+    CTh = Th + RkTh
+    if (changed(Th) & Th) {Run = 1}
+    if (isnan(Th) | isinf(Th) | Hit | Cth > 90 | Cth < -90) {Run = 0}
+
+    if (!Run & !Hit) {
+      Rk4 = array(vec2(0, 0), vec2(Mv*cos(CTh), Mv*sin(CTh)))
     }
   }
   else {CTh = Th}
