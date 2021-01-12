@@ -67,7 +67,8 @@ if (first() | dupefinished()) {
     if (BPos:x() > Dx | BPos:y() < Dk*BPos:x()) {
       EndPos = BPos
 
-      RkTh = ((  ( (Dx - EndPos:x()) + (Dy - EndPos:y()) )*0.01905)*Increase)*Sign
+      RkTh = RkTh + (( ( (Dx - EndPos:x()) + (Dy - EndPos:y()) )*0.01905)*Increase)*Sign
+      Cth = Th + RkTh
 
       Rk4 = array(vec2(0, 0), vec2(Mv*cos(RkTh), Mv*sin(RkTh)))
     }
@@ -130,15 +131,11 @@ if (Active) {
     K = (Pi*Caliber^2)/(4000000*M*DragDiv)
     
     DiffXY = sqrt((Dx - EndPos:x())^2 + (Dy - EndPos:y())^2)
-
     Hit = (DiffXY*0.01905 < Tolerance) ? 1 : 0
 
     while (perf() & Run) {runBody()}
-
-    CTh = Th + RkTh
     if (changed(Th) & Th) {Run = 1}
     if (isnan(Th) | isinf(Th) | Hit | Cth > 90 | Cth < -90) {Run = 0}
-
     if (!Run & !Hit) {
       Rk4 = array(vec2(0, 0), vec2(Mv*cos(CTh), Mv*sin(CTh)))
     }
