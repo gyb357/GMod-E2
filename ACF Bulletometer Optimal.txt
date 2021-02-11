@@ -1,0 +1,89 @@
+@name ACF Bulletometer Optimal
+@inputs  [Gun]:entity [Solve]
+@outputs [Run Hit Time] [EndPos Pos Vel]:vector
+
+@persist [Gv]:vector [G Pi Caliber DragDiv ToM]
+@persist [OptimalIters LastIters Dt]
+@persist [OptimalIters LastIters Dt]
+
+@trigger [Solve Gun]
+
+interval(50)
+
+if (first() | dupefinished()) {
+    Gv = propGravity()
+    G  = gravity()
+    Pi = pi()
+    Caliber = Gun:acfCaliber()
+    DragDiv = acfDragDiv()
+    ToM     = 39.37
+
+    OptimalIters = 5 # initial optimal iteration count per calculation
+    LastIters    = OptimalIters
+    Dt = 1
+
+    function vector accel(V:vector){
+        return Gv - (DragCoef*V*V:length()/DragDiv)
+    }
+
+    function array rk4(Comp:array, Dt) {
+        X1 = Comp[1, vector], V1 = Comp[2, vector]
+        A1 = accel(V1)
+        V2 = V1 + A1*Dt/2, A2 = accel(V2)
+        V3 = V1 + A2*Dt/2, A3 = accel(V3)
+        V4 = V1 + A3*Dt,   A4 = accel(V4)
+        Xf = X1 + (Dt/6.0)*(V1 + 2*(V2 + V3) + V4)
+        Vf = V1 + (Dt/6.0)*(A1 + 2*(A2 + A3) + A4)
+        return array(Xf, Vf)
+    }
+
+    function void runBody() {
+        LastIters++
+        PosBefore = Rk4[1, vector]
+        Rk4 = rk4(Rk4, DT)
+        Pos = Rk4[1, vector]
+        Time += Dt
+ 
+        Trace = rangerOffset(PosBefore, Pos)
+        if (Trace:hit()) {
+            Pos = Trace:pos()
+            EndPos = Pos
+            Hit = 1
+        }
+    }
+
+    rangerFilter(Gun)
+    rangerPersist(1)
+}
+
+if (Solve & Gun & !Run) {
+    GPos = Gun:attachmentPos("muzzle")
+    GDir = Gun:forward()
+    GVel = Gun:vel()
+
+    Mv       = Gun:acfMuzzleVel()*ToM
+    Mass     = Gun:acfProjectileMass()
+    DragCoef = (Pi*Caliber^2)/(4000000*Mass)
+ 
+    Time = Time ?: 5
+    OptimalIters = ceil(Time*2) # ~7 iterations at max map range
+
+    if (LastIters != OptimalIters) {
+        Ratio = LastIters/OptimalIters
+        Dt *= Ratio
+    }
+    Time = Dt
+
+    Pos = GPos
+    Vel = GDir*Mv + GVel
+    Rk4 = array(Pos, Vel)
+
+    Hit = 0, Run = 1, LastIters = 0
+}
+
+if (Run) {
+    if (!Hit) {runBody()}
+    if (Hit)  {Run = 0}
+}
+
+  OpsCpu = array(ops(), cpuUsage()*10^6)
