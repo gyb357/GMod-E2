@@ -3,8 +3,8 @@
 @outputs [Run Hit Time] [EndPos Pos Vel]:vector
 
 @persist [Gv]:vector [G Pi Caliber DragDiv ToM]
-@persist [OptimalIters LastIters Dt]
-@persist [OptimalIters LastIters Dt]
+@persist [OptimalIters LastIters Dt Time]
+@persist [Rk4]:array [Mv Mass DragCoef]
 
 @trigger [Solve Gun]
 
@@ -40,7 +40,7 @@ if (first() | dupefinished()) {
     function void runBody() {
         LastIters++
         PosBefore = Rk4[1, vector]
-        Rk4 = rk4(Rk4, DT)
+        Rk4 = rk4(Rk4, Dt)
         Pos = Rk4[1, vector]
         Time += Dt
  
