@@ -1,0 +1,421 @@
+@name Fin2 FLCS Computer Mk4.5 1.3 (F-35B)
+@inputs  [Pod Cam ACF_Engine]:wirelink [Base ThrustBase WheelBase]:entity [Fin_C Fin_All Gate Deco Ballast Thrust Wheel]:array [View Flaps Nozzle EngineOn Gear During]
+@outputs [FeF ReF LeF BeF On] [AoA]:vector [Vtol EngineUp Speed ThrustAng ZCommand Yawing] [OpsCpu]:array
+# Option
+@persist [DecoArr]:array [Parent Hide] [CamOffset]:vector [WheelMass ThrustMass Inertia MaxAoA KeyAoA FlapAoA VtolAoA Increase MaxThrust]
+@persist [Kp Ky Kr]:array [DT Kl Ka Ki Kv Kt]
+# Constant
+@persist [G T Mul ToM]
+# Function
+@persist [Idx]
+@persist [Moment]:vector [Mass] [Physics]:array [CoG_Length]:array [MainF M_Back M_Forward]
+@persist [FinMass]:array
+# Pod active run
+@persist [On Command Flap]
+@persist [Aim]:vector
+@persist [PAoA RAoA FAoA Alt]
+@persist [ThrustAng]
+# PID Controller
+@persist [Pp Yp Rp Pi Yi Ri Pd Yd Rd]
+@persist [ZCommand]
+@trigger none
+
+interval(50)
+
+if (first() | dupefinished()) {
+    # ----- Option ----- #
+    # Control surface
+    DecoArr = array(1, 2, 3, 4, 5, 6, 7, 8)
+    Parent  = 0
+    Hide    = 1
+    # Cam
+    CamOffset = vec(0, 0, 25)
+    
+    # Physics setting
+    WheelMass  = 200
+    ThrustMass = 200
+    Inertia    = 15000
+    
+    # Angle of attack
+    MaxAoA    = 30
+    KeyAoA    = 15
+    FlapAoA   = 30
+    VtolAoA   = 45
+    # Thrust force control
+    Increase  = 100
+    MaxThrust = 3000
+    
+    # PID gain: CTOL, VTOL
+        Kp = array(vec(0.20, 0.05, 0.02), vec(3.0, 0.50, 3.00))
+        Ky = array(vec(0.10, 0.05, 0.02), vec(0.5, 0.10, 1.00))
+        Kr = array(vec(0.00, 0.00, 0.02), vec(3.0, 0.50, 3.00))
+        DT = 0.1
+        
+    # Proportion constant
+        Kl = 0.5   # Lowpass filter (smooth)
+        Ka = 0.4   # AoA limit      (velocity)
+        Ki = 500   # Inertia        (velocity)
+        Kv = 20    # Vtol           (AoA multiplier)
+        Kt = 0.025 # Atitude        (velocity)
+        
+    # ----- Constant ----- #
+        G   = gravity()
+        T   = tickInterval()
+        Mul = 13.825
+        ToM = 0.01905
+        
+    # ----- Function ----- #
+    function void entity:controlSurface([Parent Hide]) {
+        foreach (I, E:entity = Gate) {
+            holoCreate(I, E:massCenter(), vec(!Hide), E:angles())
+            holoParent(I, This)
+            E:propDraw(!Hide)
+            E:propNotSolid(Hide)
+            if (Parent) {
+                E:parentTo(This)
+                Fin_C[I, entity]:parentTo(holoEntity(I))
+            }
+        }
+        foreach (I, E:entity = Deco) {
+            foreach (J, N:number = DecoArr) {
+                if (I == N) {Idx++}
+            }
+            if (Parent) {E:parentTo(Fin_C[Idx, entity])}
+        }
+    }
+    
+    function void dynamicSystem() {
+        foreach (I, E:entity = Thrust) {E:setMass(ThrustMass)}
+        
+        Moment = vec(0)
+        Mass   = 0
+        Physics = Base:getConstraints()
+        Physics:pushEntity(Base)
+        foreach (I, E:entity = Physics) {
+            if (E != ThrustBase & E != WheelBase) {
+                M       = E:mass()
+                Moment += E:massCenter()*M
+                Mass   += M
+            }
+        }
+        foreach (I, E:entity = Thrust) {
+            CoG_Length:pushVector(E:toLocal(Moment/Mass))
+        }
+        R1 = abs(CoG_Length[1, vector]:length())
+        R2 = abs(CoG_Length[2, vector]:length())
+        R4 = abs(CoG_Length[4, vector]:length())
+        
+        # Main thrust force
+        MainF = ((Mass*G*T)/Mul)/4
+        # Moment
+        M_Err     = 0.0275
+        M_Back    = (R1/R4) - M_Err
+        M_Forward = 1 + (1 - M_Back)
+    }
+    
+    function vector vector:lowpassFilter(K, V:vector) {return (1-K)*This + K*V}
+    
+    function vector entity:aimAngles(V:vector) {
+        Elev = This:elevation(V)
+        Bear = This:bearing(V)
+        if (Bear > 90)  {Bear = 180 - Bear}
+        if (Bear < -90) {Bear = -180 - Bear}
+        
+        local P = clamp(Elev, -MaxAoA, MaxAoA)
+        local Y = clamp(Bear, -MaxAoA, MaxAoA)*cos(clamp(Elev, -90, 90))
+        local R = 0
+        return vec(P, Y, R)
+    }
+    
+    #-------------------------------------------------------------------#
+    
+    if (Base) {
+        Base:controlSurface(Parent, Hide)
+        dynamicSystem()
+    }
+    
+    # Vtol set mass
+    for (I = 1, 12) {Ballast[I, entity]:setMass(0)} # Ballast - Fin
+    for (I = 1, 3)  {Thrust[I,  entity]:setMass(0)} # Front, Side thrust
+    
+    # Fin mass data
+    foreach (I, E:entity = Fin_All) {FinMass:pushNumber(E:mass())}
+    
+    # Ballast hide
+    foreach (I, E:entity = Ballast) {
+        E:propDraw(!Hide)
+        E:propNotSolid(Hide)
+    }
+    
+    # Ranger
+    rangerPersist(1)
+    rangerHitEntities(0)
+}
+
+# Element of angle & velocity
+if (Base) {
+    # Angle
+    Angle  = Base:angles()
+    Pitch  = Angle:pitch()
+    Yaw    = Angle:yaw()
+    Roll   = Angle:roll()
+    # Angle Velocity
+    AngVel = Base:angVel()
+    Pv     = AngVel:pitch()
+    Yv     = AngVel:yaw()
+    Rv     = AngVel:roll()
+    # Vector velocity
+    Vel    = Base:vel():rotate(0, -Yaw + 90, 0)
+    VelL   = Vel:length()
+    Vx     = Vel:x()
+    Vy     = Vel:y()
+    Vz     = Vel:z()
+    Speed  = VelL*ToM
+}
+
+
+# Cam control
+    PodAct = Pod["Active", number]
+if (changed(PodAct)) {
+    Driver = Pod["Driver", entity]
+    
+    if (Cam) {
+        Cam["Position", vector]  = Driver:pos() + CamOffset
+        Cam["Parent", entity]    = Base
+        Cam["Activated", number] = 1
+    }
+}
+
+
+# EngineOn
+if (ACF_Engine) {
+    ACF_Engine["Active", number]   = On
+    ACF_Engine["Throttle", number] = EngineUp*75
+    RPM       = ACF_Engine["RPM", number]
+    MaxF      = RPM
+    MaxF4     = MaxF/4
+    EngineAct = (RPM ? 1 : 0)
+}
+else {
+    MaxF      = MaxThrust
+    MaxF4     = MaxThrust
+    EngineAct = On
+}
+
+    EngineUp += clamp((On & EngineAct) - EngineUp, -0.01, 0.01)
+    EngineUp = clamp(EngineUp, 0, 100)
+
+
+
+# Pod active run
+if (PodAct) {
+    # Key command
+    W     = Pod["W", number]
+    A     = Pod["A", number]
+    S     = Pod["S", number]
+    D     = Pod["D", number]
+    Shift = Pod["Shift", number]
+    Alt   = Pod["Alt", number]
+    
+    if (changed(EngineOn) & EngineOn) {On      = !On}
+    if (changed(View) & View)         {Command = !Command}
+    if (!Vtol) {
+        if (changed(Flaps) & Flaps) {Flap = !Flap}
+    }
+    
+    #-------------------------------------------------------------------#
+    
+    # Angle of attack
+    if (Command) {
+        Pos    = Cam["CamPos", vector]
+        Dir    = Cam["CamDir", vector]
+        Dist   = rangerOffset(999999, Pos, Dir:normalized()):distance()
+        AimPos = Pos + Dir*Dist
+        
+        Aim = Aim:lowpassFilter(Kl, AimPos)
+        Ang = Base:aimAngles(Aim)
+        
+        Y   = clamp(Yaw + Ang[2] - Yaw, -1, 1)
+        AoA = Ang - vec(0, Y, 0)
+    }
+    else {AoA = vec(0)}
+    
+    if (!Nozzle) {
+        PAoA += clamp((W - S)*KeyAoA - PAoA, -5, 5)
+        RAoA += clamp((A - D)*KeyAoA - RAoA, -5, 5)
+        FAoA += clamp((Flap)*FlapAoA - FAoA, -5, 5)
+    }
+    
+    #-------------------------------------------------------------------#
+    
+    # Vtol Thrust angle
+    if (Nozzle) {
+        if (!(!Gear & During)) {
+            if (W | S) {
+                ThrustAng += (W - S)*5
+                ThrustAng = clamp(ThrustAng, 0, 90)
+            }
+            Vtol = (ThrustAng > VtolAoA ? 1 : 0)
+        }
+    }
+    
+    #-------------------------------------------------------------------#
+    
+    # Set physics
+    # Vtol
+    if (changed(Vtol)) {
+        for (I = 1, Fin_All:count()) {
+            local M = FinMass[I, number]
+            
+            Fin_All[I, entity]:setMass(M*!Vtol)
+            Ballast[I, entity]:setMass(M*Vtol)
+        }
+        for (I = 13, 15) {Ballast[I, entity]:setMass(ThrustMass*Vtol)} # Ballast (Wheel)
+        for (I = 1, 3)   {Thrust[I,  entity]:setMass(ThrustMass*Vtol)} # Front, Side thrust
+        
+        foreach (I, E:entity = Physics) {E:propDrag(!Vtol)}            # All of physical entity
+    }
+    
+    # Gear
+    if (changed(Gear)) {
+        foreach (I, E:entity = Wheel) {
+            E:setMass(WheelMass*Gear)
+            E:propNotSolid(!Gear)
+        }
+    }
+}
+else {Command = 0, AoA = vec(0)}
+
+
+
+# Flight control system
+if (On) {
+    # AoA limiter
+    if (!Vtol) {
+        Velm     = VelL*ToM
+        AngVelm  = Base:angVelVector():length()*ToM
+        Vm       = Velm*AngVelm
+        
+        AoAClamp = MaxAoA - clamp(Vm*Ka, 0, MaxAoA/2)
+    }
+    
+    # Anti inertial coupling
+    Base:propInertia(vec(Inertia + Vm*Ki))
+    
+    #-------------------------------------------------------------------#
+    
+    # PID Controller
+    # Proportional
+    if (Vtol) {
+        if (Command) {
+            Pp = -(-PAoA + AoA[1])*Kv
+            Yp = -(AoA[2])*Kv
+            Rp = -(RAoA)*Kv
+        }
+        else {
+            PCommand = ((W | S) ? 1 : 0)
+            RCommand = ((A | D) ? 1 : 0)
+            
+            Pp = -(-PAoA + Pitch*!PCommand)*Kv - clamp(Vy, -500, 500)*!PCommand
+            Yp = -(AoA[2])*Kv
+            Rp = -(RAoA + Roll*!RCommand)*Kv - clamp(Vx, -500, 500)*!RCommand
+        }
+    }
+    else {
+        if (Command) {
+            Pp = AoA[1], Yp = AoA[2], Rp = AoA[3]
+        }
+        else {Pp = Yp = Rp = 0}
+    }
+    # Integral
+    Pi += Pp*DT, Pi = clamp(Pi, -10, 10)
+    Yi += Yp*DT, Yi = clamp(Yi, -10, 10)
+    Ri += Rp*DT, Ri = clamp(Ri, -10, 10)
+    # Derivation
+    Dt = (Vtol ? DT : 1)
+    Pd = Pv/Dt
+    Yd = Yv/Dt
+    Rd = Rv/Dt
+    # Control
+    Gain = (Vtol ? 2 : 1)
+    Sign = (Vtol ? -1 : 1)
+    P_pid = Pp*Kp[Gain, vector][1] + Pi*Kp[Gain, vector][2] + Pd*Kp[Gain, vector][3]*Sign
+    Y_pid = Yp*Ky[Gain, vector][1] + Yi*Ky[Gain, vector][2] + Yd*Ky[Gain, vector][3]*Sign
+    R_pid = Rp*Kr[Gain, vector][1] + Ri*Kr[Gain, vector][2] + Rd*Kr[Gain, vector][3]*Sign
+    
+    #-------------------------------------------------------------------#
+    
+    # Vtol dynamic system
+    if (Vtol) {
+        # Moment arm
+        local P1    = Base:elevation(Base:pos() + vec(0, 0, 1)) - 90
+        local Sqrt1 = sqrt(MainF^2 + (MainF*tan(P1))^2)
+        
+        Thrust_Back = Thrust[4, entity]
+        local P2    = Thrust_Back:elevation(Thrust_Back:pos() + vec(0, 0, 1)) + 90
+        local Sqrt2 = sqrt(MainF^2 + (MainF*tan(P2))^2)
+        
+        
+        # Altitude control
+        local Ke     = (0.5*Mass*(Vz*Kt)^2)
+        local Ke_Mul = Ke/Mul
+        local Ke_F   = abs(cos(P1))*Ke_Mul*sign(Vz)
+        
+        ZCommand += clamp((Shift - Alt)*Increase - ZCommand, -5, 5)
+        Altitude = ((Shift | Alt) ? -ZCommand : Ke_F)
+        
+        
+        # Thrust force control
+        FeF = clamp( (Sqrt1 - P_pid - Altitude)*M_Forward, 0, MaxF4)
+        ReF = clamp( (Sqrt1 - R_pid - Altitude),           0, MaxF4)
+        LeF = clamp( (Sqrt1 + R_pid - Altitude),           0, MaxF4)
+        BeF = clamp( (Sqrt2 + P_pid - Altitude)*M_Back,    0, MaxF4)
+    }
+    else {
+        P_pid = clamp(P_pid, -1, 1)*AoAClamp
+        Y_pid = clamp(Y_pid, -1, 1)*AoAClamp
+        R_pid = clamp(R_pid, -1, 1)*MaxAoA
+        
+        
+        # Thrust force control
+        BeF += ((Shift - Alt)*Increase)
+        BeF = clamp(BeF, 0, clamp(MaxF, 0, MaxThrust))
+        
+        FeF = ReF = LeF = 0
+    }
+}
+else {FeF = ReF = LeF = BeF = 0}
+
+
+if (!Vtol) {
+    Ailr  = R_pid*(!A & !D) + RAoA
+    Stab  = P_pid
+    Rudd  = Y_pid
+}
+else {
+    FAoA = ThrustAng/2
+    Stab = -ThrustAng/2
+    Rudd = 0
+}
+
+
+    # Hologram set angle
+    holoAng(1, Gate[1, entity]:toWorld(ang(0, 0, -Ailr - FAoA))) # Right flaperon
+    holoAng(2, Gate[2, entity]:toWorld(ang(0, 0, -Ailr + FAoA))) # Left  flaperon
+    holoAng(3, Gate[3, entity]:toWorld(ang(0, 0, -Stab + Ailr))) # Right stabilizer
+    holoAng(4, Gate[4, entity]:toWorld(ang(0, 0, -Stab - Ailr))) # Left  stabilizer
+    holoAng(5, Gate[5, entity]:toWorld(ang(0, Rudd, 0)))         # Right rudder
+    holoAng(6, Gate[6, entity]:toWorld(ang(0, Rudd, 0)))         # Left  rudder
+    holoAng(7, Gate[7, entity]:toWorld(ang(0, 0,  PAoA*!Vtol)))  # Right spoiler
+    holoAng(8, Gate[8, entity]:toWorld(ang(0, 0, -PAoA*!Vtol)))  # Left  spoiler
+    
+if (ThrustBase) {
+    Yawing = clamp(Y_pid, -30, 30)*Vtol
+    
+    ThrustBase:propFreeze(1)
+    ThrustBase:setAng(Base:toWorld(ang(90 - ThrustAng, 0, Yawing)))
+}
+
+    OpsCpu = array(ops(), cpuUsage()*10^6)
+
+# Made by RuBid Fin2 FLCS Computer Mk4.5 1.3 (F-35B) 2022.01.10
