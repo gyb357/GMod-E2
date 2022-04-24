@@ -1,0 +1,128 @@
+@name Anti Terrorist
+@inputs  
+@outputs [Target]:entity [CpuOps]:array I Effect Sound Clk Hold BTarget:string
+@persist [Own Prop]:entity 
+
+    interval(500)
+     
+    if (first() | dupefinished()) {
+        Own = owner()
+        
+        runOnChat(1)
+        holoCreate(1)
+        holoColor(1, vec(0, 0, 0))
+        holoScale(1, vec(5, 5, 5))
+        holoModel(1, "models/props_wasteland/laundry_basket001.mdl")
+        
+        Effect = 0
+        Sound = 0
+        Clk  = 0  
+        Hold = 0
+        function string lastSay(Fir:number, Sec:number) {
+            return Own:lastSaid():sub(Fir, Sec)
+        }
+    }
+
+    if (chatClk(Own)) {
+        if (lastSay(1, 1) == "/") {
+            hideChat(1)
+            Name   = Own:lastSaid():length()
+            Target = findPlayerByName(Own:lastSaid():sub(2,Name))
+            if(!(Target:name())){
+                if(lastSay(1,5) != "/stop"){
+                    print("Can't Search That Target")
+                }
+            } else {  
+                if(Own:name() == Target:name()){ 
+                    print("Can't Do Myself")
+                    Clk = 1
+                    Target = findPlayerByName(BTarget)
+                } else {
+                    if(Target:name() != BTarget){
+                        if(lastSay(1,5) != "/stop"){
+                            print("Conform The New Anti To Target : " + Target:name())
+                        }
+                        BTarget = Target:name() 
+                    } elseif (Target:name() == BTarget) {
+                        if(lastSay(1,5) != "/stop"){
+                            print("Continue Anti")
+                        }
+                    }   
+                    holoUnparent(1)
+                    Hold = !Hold
+                    Effect = 1
+                }
+            }  
+        } elseif (lastSay(1, 4) == "list"){
+            hideChat(1)
+            print(players())
+        } elseif (lastSay(1, 6) == "target"){
+            hideChat(1)
+            if(!(Target:name())){
+                print("No One")
+            } else {
+                print("Target : " + Target:name())
+            }
+        } 
+    }
+    
+    if(Clk){
+        if (changed(Hold)) {
+            holoPos(1, Target:pos() + vec(0, 0, 50))
+            holoAlpha(1, 255) 
+            holoParent(1, Target)
+        }
+        
+        if ((changed(Target) & !Target) | chatClk(Own)) {
+            if(lastSay(1,5) == "/stop") {
+                Hold = !Hold
+                Effect = 0
+                propDeleteAll()
+                holoAlpha(1, 0)
+                if((changed(Target) & !Target)){
+                    print("Target Has Been Run Away")    
+                } else {
+                    print("Stoped Anti Terror") 
+                }    
+                
+                for(I=1,I<13){
+                    soundStop(I)  
+                }
+            }
+        } 
+    
+        if(Effect){
+            Sound = !Sound
+            if (changed(Target:pos())|!Prop){
+                propDeleteAll()
+                Prop = propSpawn("models/hunter/blocks/cube2x2x2.mdl", Target:pos() + vec(0, 0, 50), ang(0, 0, 0), 1)
+                Prop:setColor(vec4(0, 0, 0, 255))
+                Prop:setMass(50000)   
+            }
+            if(Sound){
+                for(I=1,I<7){
+                    soundStop(I)  
+                }
+                holoEntity(1):soundPlay(7, 600, "thrusters/jet04.wav")
+                holoEntity(1):soundPlay(8, 600, "vehicles/chopper_rotor2.wav")
+                holoEntity(1):soundPlay(9, 600, "player/general/flesh_burn.wav")
+                holoEntity(1):soundPlay(10, 600, "ambient/alarms/siren.wav")
+                holoEntity(1):soundPlay(11, 600, "ambient/alarms/siren.wav")
+                holoEntity(1):soundPlay(12, 600, "ambient/alarms/city_firebell_loop1.wav")  
+            } else {
+                for(I=7,I<13){
+                    soundStop(I)  
+                }
+                holoEntity(1):soundPlay(1, 600, "thrusters/jet04.wav")
+                holoEntity(1):soundPlay(2, 600, "vehicles/chopper_rotor2.wav")
+                holoEntity(1):soundPlay(3, 600, "player/general/flesh_burn.wav")
+                holoEntity(1):soundPlay(4, 600, "ambient/alarms/siren.wav")
+                holoEntity(1):soundPlay(5, 600, "ambient/alarms/siren.wav")
+                holoEntity(1):soundPlay(6, 600, "ambient/alarms/city_firebell_loop1.wav")
+           }  
+        }      
+    } else { 
+        Clk = !Clk
+    }          
+
+    CpuOps = array(cpuUsage() * 1000000, ops())
