@@ -1,0 +1,89 @@
+@name Ammo SetUp
+@inputs  [Pod]:wirelink [Gun]:entity
+@outputs [AmmoText]:string [CpuOps]:array
+@persist [ChangeAmmo]:string 
+@persist [Links]:array [Own]:entity
+@persist [AmmoAry Index AmmoType]:array [Table]:table [AmmoIndex]:number 
+interval(64)
+
+if (first() | dupefinished()) {
+    # ----- User Interface ----- #
+    ChangeAmmo = "r"
+    
+    # ----- Do Not Touch These ----- #
+        Links = Gun:acfLinks()
+        
+        Own = owner()
+        
+    function array findAmmo() {
+        findIncludePlayerProps(Own)
+        findByClass("acf_ammo")
+        
+        AmmoAry = findToArray()
+        
+        return AmmoAry
+    }
+    
+    function void autoLink() {
+        for (I = 1, findAmmo():count()) {
+            if (AmmoAry[I, entity]:acfCaliber() == Gun:acfCaliber()) {
+                Gun:acfLinkTo(AmmoAry[I, entity], 0)
+            }
+        }
+    }
+    
+    function void searchAmmo() {
+        Ammo = Gun:acfLinks()
+        
+        for (I = 1, Ammo:count()) {
+            Table[Ammo[I, entity]:acfAmmoType(), number] = Table[Ammo[I, entity]:acfAmmoType(), number] + 1   
+            
+            if (changed(Table:count())) {
+                Index:pushEntity(Ammo[I, entity])
+            }
+        }
+        
+        for (I = 1, Index:count()) {
+            AmmoType:pushString(Index[I, entity]:acfAmmoType())
+        }
+    }
+    
+    function void ammoSelect() {
+        Change = Own:keyPressed(ChangeAmmo)
+        
+        if (changed(Change) & Change) {
+            AmmoIndex += AmmoIndex < AmmoType:count() ? 1 : -AmmoType:count() + 1
+        }
+        
+        AmmoText = AmmoType[AmmoIndex, string] + " (" + Gun:acfAmmoType() + ") " + Gun:acfAmmoCount()
+    }
+    
+    function void ammoActive() {
+        if ((changed(Change) & Change) | changed(Gun:acfAmmoCount()) & Gun:acfAmmoCount()) {
+            for (I = 1, Links:count()) {
+                Links[I, entity]:acfActive(AmmoType[AmmoIndex, string] == Links[I, entity]:acfAmmoType() ? 1 : 0)
+            }
+        }
+    }
+}
+    Active = Pod["Active", number]
+    
+if (changed(Active) & Active) {
+    autoLink()
+    searchAmmo()
+    
+    AmmoIndex = 1
+}
+
+if (Active) {
+    ammoSelect()
+    ammoActive()
+}
+
+if (changed(Gun:acfLinks():count())) {
+    reset()
+}
+
+    CpuOps = array(cpuUsage() * 1000000, ops())
+    
+# Made By RuBid Ammo SetUp V2019.09.25
