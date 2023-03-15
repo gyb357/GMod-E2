@@ -1,0 +1,137 @@
+@name ACF Ammo Setup V5
+@inputs  [Gun]:entity [Active Change Turn]
+@outputs [AmmoTxt]:string [Mod] [OpsCpu]:array
+@persist [AmmoSlot TurnSlot]:array [Area Range UnLink Link Hint Debug] [Color]:vector
+@persist [Own]:entity
+@persist [AmmoTable RoundsTable]:table [TotalRounds SlotCount Mod AmmoIdx] [RoundsData]:string
+
+interval(50)
+
+if (first() | dupefinished()) {
+    # ----- Option ----- #
+    # Slot
+    AmmoSlot = array("ap", "aphe", "he")
+    TurnSlot = array("ap", "aphe", "he")
+    # Find
+    Area  = 1
+    Range = 1000
+    # Link
+    UnLink = 1
+    Link   = 1
+    # Print
+    Debug = 1
+    Hint  = 0
+    Color = vec(150, 250, 150)
+    
+     # ----- Don't modify below part ----- #
+        Own = owner()
+        
+    function number acfAmmoSlot() {
+        function array array:upperStr() {
+            foreach (I, Str:string = This) {This[I, string] = Str:upper()}
+            return This
+        }
+        function array array:sameStr() {
+            local Count = This:count()
+            foreach (I, Str:string = This) {
+                for (J = I+1, Count) {if (Str == This[J, string]) {This:setString(J, "")}}
+            }
+            for (I = 1, Count) {
+                for (J = 1, Count) {if (This[J, string] == "") {This:remove(J)}}
+            }
+            return This
+        }
+        AmmoSlot = AmmoSlot:upperStr(), AmmoSlot = AmmoSlot:sameStr()
+        TurnSlot = TurnSlot:upperStr(), TurnSlot = TurnSlot:sameStr()
+        return AmmoSlot:count()
+    }
+    
+    function array entity:findEntity(Class:string) {
+        findIncludePlayerProps(Own)
+        if (Area) {
+            findClearWhiteList(), findIncludeClass(Class)
+            findInSphere(This:pos(), Range)
+        } else {findByClass(Class)}
+        return findToArray()
+    }
+    
+    function void entity:acfAmmoLink(Ammo:array) {
+        UnLinkCount = LinkCount = 0
+        if (UnLink) {
+            local Links = This:acfLinks()
+            foreach (I, Ent:entity = Links) {This:acfUnlinkFrom(Ent, Hint)}
+        }
+        if (Link) {
+            foreach (I, Ent:entity = Ammo) {Ent:acfActive(0), This:acfLinkTo(Ent, Hint)}
+        }
+    }
+    
+    function void entity:acfAmmoData() {
+        local Links = This:acfLinks()
+        TotalRounds = 0
+        foreach (I, Ent:entity = Links) {
+            local Type = Ent:acfAmmoType()
+            foreach (J, Slot:string = AmmoSlot) {
+                if (Type == Slot) {
+                    local Rounds = Ent:acfRounds()
+                    local Slot   = AmmoSlot[J, string]
+                    AmmoTable[Type, number]   = AmmoTable[Type, number] + 1
+                    RoundsTable[Slot, number] = RoundsTable[Slot, number] + Rounds
+                    TotalRounds += Rounds
+                }
+            }
+        }
+    }
+    
+    function void entity:acfAmmoSelect(TKey, CKey) {
+        local AmmoCount  = This:acfAmmoCount()
+        local Links      = This:acfLinks()
+        local LinksCount = Links:count()
+        if (changed(TKey) & TKey) {Mod = !Mod}
+        if (changed(Mod) & Mod) {
+            foreach (I, Ent:entity = Links) {Ent:acfActive(0)}
+            foreach (I, Ent:entity = Links) {
+                for (J = 1, LinksCount) {
+                    if (Ent:acfAmmoType() == TurnSlot[J, string]) {Ent:acfActive(1)}
+                }
+            }
+        }
+        if (!Mod) {
+            if (changed(CKey) & CKey) {AmmoIdx += (AmmoIdx < SlotCount) ? 1 : -SlotCount + 1}
+            if (changed(AmmoCount) | changed(AmmoIdx)) {
+                SlotTxt = AmmoSlot[AmmoIdx, string]
+                AmmoTxt = SlotTxt + " (" + This:acfAmmoType() + ") " + AmmoCount
+                
+                foreach (I, Ent:entity = Links) {Ent:acfActive((Ent:acfAmmoType() == SlotTxt) ? 1 : 0)}
+            }
+        }
+    }
+    
+    function void printDebug() {
+        RoundsData = ""
+        for (I = 1, SlotCount) {
+            local Type = AmmoSlot[I, string]
+            RoundsData += Type + ": " + RoundsTable[Type, number] + " / "
+        }
+        local LinkCount = Gun:acfLinks():count()
+        
+        printColor(Color, "[ACF Ammo Setup V5]")
+        printColor(Color, LinkCount + " AmmoBox has linked / " + RoundsData + "Total Rounds: " + TotalRounds)
+    }
+    
+    if (Gun) {
+        SlotCount = acfAmmoSlot()
+        Ammo      = Gun:findEntity("acf_ammo")
+        Gun:acfAmmoLink(Ammo)
+        Gun:acfAmmoData()
+        if (Debug) {printDebug()}
+        AmmoIdx = 1
+    }
+}
+
+if (~Gun & Gun) {reset()}
+if (Active)     {Gun:acfAmmoSelect(Turn, Change)}
+
+    OpsCpu = array(ops(), cpuUsage()*10^6)
+
+# Made by RuBid ACF Ammo SetUp V5 V2021.07.31
