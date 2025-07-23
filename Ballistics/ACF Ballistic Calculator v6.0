@@ -12,7 +12,7 @@
 # preprocess
 @persist [Base]:entity
 # loop
-@persist [Prd]:vector
+@persist [Curr_voc Next_voc Lprd Cprd Prd]:vector
 @trigger none
 
 
@@ -93,9 +93,9 @@ event tick() {
             local Cod  = Gun:acfDragCoef()
             local ToF  = (Time_of_flight ? Time_of_flight : ln(Vc / (Vc - Cod*AmM:length()))/Cod)
             
-            local Curr_voc = VoT - VoB
-            local Lprd     = Curr_voc*ToF + 0.5*(Curr_voc - Next_voc)*ToF^2
-                  Next_voc = VoT - VoB
+            Curr_voc = VoT - VoB
+            Lprd     = Curr_voc*ToF + 0.5*(Curr_voc - Next_voc)*ToF^2
+            Next_voc = VoT - VoB
             
             if (Curvature) {
                 local Curr_vot     = VoT
