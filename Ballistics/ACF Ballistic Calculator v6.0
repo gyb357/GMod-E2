@@ -1,0 +1,135 @@
+@name ACF Ballistic Calculator v6.0
+@inputs  [Gun Target]:entity [Aim_pos]:vector [Arc Time_of_flight]:number
+@outputs [Angle]:angle [Resources]:array
+# debug
+@outputs 
+# setting
+@persist [Full_auto Drop Predict Curvature Set_angle]
+# constant
+@persist [Tick MtI G Pi]:number
+# initialize value
+@persist [Next_tp Next_voc Next_vot]:vector [Next_vot_len]:number
+# preprocess
+@persist [Base]:entity
+# loop
+@persist [Prd]:vector
+@trigger none
+
+
+if (first() | dupefinished()) {
+    # ----- setting ----- #
+    Full_auto = 1
+    Drop      = 1
+    Predict   = 1
+    Curvature = 1
+    Set_angle = 0
+    
+    
+    # ----- constant ----- #
+    Tick = tickInterval()
+    MtI  = 39.3701
+    G    = gravity()
+    Pi   = _PI
+    
+    
+    # ----- initialize value ----- #
+    Next_tp      = vec()
+    Next_voc     = vec()
+    Next_vot     = vec()
+    Next_vot_len = 0
+    
+    
+    # ----- function ----- #
+    function entity entity:base_parent(Perf:number) {
+        while (perf(Perf) & This:parent()) {
+            This = This:parent()
+        }
+        return This
+    }
+    
+    
+    # ----- preprocess ----- #
+    if (Gun) {
+        Base = Gun:base_parent(10)
+    }
+}
+
+
+# ----- loop ----- #
+event tick() {
+    if (Gun) {
+        if (Base) {
+                  VoB  = Base:vel()
+            local VoBt = VoB*Tick
+                  Gpos = Gun:massCenter() + VoBt
+                  Mpos = Gun:attachmentPos("muzzle") + VoBt
+        }
+        
+        
+        if (Target) {
+            local Curr_tp = Target:pos()
+                  VoT     = (Curr_tp - Next_tp)/Tick
+                  Next_tp = Target:pos()
+                  Apos    = (Full_auto ? Next_tp : Aim_pos) + VoT*Tick
+        }
+        else {Apos = Aim_pos}
+        local AmG = Apos - Gpos
+        
+        
+        if (Drop) {
+            local V0    = Gun:acfMuzzleVel()*MtI
+            local Sign  = (Arc ? 1 : -1)
+                  AmM   = Apos - Mpos
+            local X     = sqrt(AmM:x()^2 + AmM:y()^2)
+            local Y     = -AmM:z()
+                  Atan  = -atan((V0^2 + Sign*sqrt(V0^4 - G^2*X^2 + 2*Y*G*V0^2))/(G*X))
+                  Theta = Atan - AmG:toAngle():pitch()
+        }
+        
+        
+        if (Predict) {
+            local V0   = Gun:acfMuzzleVel()*MtI
+            local Vc   = V0*cos(Theta)
+            local Cod  = Gun:acfDragCoef()
+            local ToF  = (Time_of_flight ? Time_of_flight : ln(Vc / (Vc - Cod*AmM:length()))/Cod)
+            
+            local Curr_voc = VoT - VoB
+            local Lprd     = Curr_voc*ToF + 0.5*(Curr_voc - Next_voc)*ToF^2
+                  Next_voc = VoT - VoB
+            
+            if (Curvature) {
+                local Curr_vot     = VoT
+                local Curr_vot_len = Curr_vot:length()
+                
+                local Axis   = Curr_vot:cross(Next_vot):normalized()
+                local Av     = acos(Curr_vot:dot(Next_vot)/Curr_vot_len/Next_vot_len)/Tick
+                      Rad    = Curr_vot_len/(Av/180*Pi)
+                local Center = Apos + Curr_vot:cross(Axis):normalized()*Rad
+                      Cprd   = ((Apos - Center):rotateAroundAxis(-Axis, Av*ToF) + Center) - Apos
+                
+                      Next_vot     = VoT
+                      Next_vot_len = Next_vot:length()
+            }
+            
+            
+            Prd = (
+                Curvature ? (
+                    isnan(Rad) | isinf(Rad) ? (
+                        Lprd
+                    ) : Cprd
+                )
+                : Lprd
+            )
+        }
+        
+        
+        Angle = (AmG + Prd):toAngle() + ang(Theta, 0, 0)
+        if (Set_angle) {Gun:setAng(Angle)}
+        
+        
+        Resources = array(ops(), cpuUsage()*10^6)
+    }
+}
+
+
+# Made by RuBid ACF Ballistic Calculator v6.0 v2025.01.10
