@@ -1,5 +1,3 @@
 # GMod-E2
 
-Gmod Expression 2 Files
-
-Do Not Abuse
+My Gmod Expression 2 Files
